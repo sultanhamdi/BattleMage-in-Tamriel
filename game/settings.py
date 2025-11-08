@@ -12,3 +12,9 @@ FULLSCREEN_SIZE = (FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT) # Simpan sebagai tuple
 
 # Pengaturan game
 FPS = 60 # Frames Per Second
+
+# --- TAMBAHKAN INI ---
+# Pengaturan Player
+PLAYER_GRAVITY = 0.8
+PLAYER_SPEED = 5
+PLAYER_JUMP_STRENGTH = -16
