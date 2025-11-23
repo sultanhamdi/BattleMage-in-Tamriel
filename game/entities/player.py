@@ -6,13 +6,12 @@ from game.utils.animation_handler import AnimationHandler
 class Player:
     def __init__(self, x, y):
         # [DIMENSI PRESISI SESUAI ASET ANDA]
+        # Idle/Run: 56x... (Tinggi frame 48px)
         self.frame_width = 56   
         self.frame_height = 48  
-        
-        self.scale = 3 # Diperbesar 3x
+        self.scale = 3 
         
         # [HITBOX]
-        # Ukuran fisik karakter di dunia game
         self.rect = pg.Rect(x, y, 40, 80) 
         
         self.physics = PhysicsComponent(self.rect)
@@ -33,20 +32,16 @@ class Player:
             x_velocity = self.movement_speed
         return x_velocity
 
-    # [PERBAIKAN] Fungsi sekarang menerima parameter kecepatan x
     def get_status(self, x_velocity):
-        # Prioritas 1: Udara (Lompat/Jatuh)
+        # Prioritas 1: Udara
         if self.physics.velocity.y < 0:
             self.status = 'jump'
         elif self.physics.velocity.y > 1:
             self.status = 'fall'
-        
-        # Prioritas 2: Tanah (Lari/Diam)
+        # Prioritas 2: Tanah
         else:
-            # Jika ada input gerak DAN menapak tanah -> Run
             if x_velocity != 0 and self.physics.on_ground: 
                  self.status = 'run'
-            # Jika tidak ada input gerak DAN menapak tanah -> Idle
             elif self.physics.on_ground: 
                  self.status = 'idle'
 
@@ -54,30 +49,34 @@ class Player:
         self.physics.jump()
 
     def update(self, platforms):
-        # 1. Ambil input
         x_vel = self.get_input()
-        
-        # 2. Update Fisika
         self.physics.update(platforms, x_vel)
-        
-        # 3. [PERBAIKAN] Update Status Animasi dengan mengirim data input
         self.get_status(x_vel)
 
-    def draw(self, surface):
+    # [UPDATE KAMERA] Menerima parameter camera_offset
+    def draw(self, surface, camera_offset):
         current_frame = self.animator.animate(self.status, 0.1, self.physics.facing_right)
 
         if current_frame:
-            # Hitung posisi gambar agar hitbox ada di tengah-tengah
             img_width = current_frame.get_width()
             img_height = current_frame.get_height()
             
+            # Hitung offset agar gambar pas di tengah hitbox
             offset_x = (img_width - self.rect.width) // 2
             offset_y = img_height - self.rect.height
             
-            # Gambar sprite di posisi yang sudah disesuaikan offset-nya
-            surface.blit(current_frame, (self.rect.x - offset_x, self.rect.y - offset_y))
+            # [LOGIKA KAMERA]
+            # Posisi Gambar = Posisi Asli - Posisi Kamera - Offset Gambar
+            draw_pos_x = self.rect.x - camera_offset.x - offset_x
+            draw_pos_y = self.rect.y - camera_offset.y - offset_y
+            
+            surface.blit(current_frame, (draw_pos_x, draw_pos_y))
         else:
-            # Fallback jika gambar gagal load
+            # Fallback (Kotak Biru) juga harus kena efek kamera
             color = BLUE
             if self.status == 'jump': color = (0, 255, 255)
-            pg.draw.rect(surface, color, self.rect)
+            
+            draw_rect = self.rect.copy()
+            draw_rect.x -= camera_offset.x
+            draw_rect.y -= camera_offset.y
+            pg.draw.rect(surface, color, draw_rect)
