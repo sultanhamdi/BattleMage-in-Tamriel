@@ -1,22 +1,27 @@
-# Pengaturan windowed (jendela)
+# game/settings.py
+
+# Layar
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
-WINDOW_SIZE = (WINDOW_WIDTH, WINDOW_HEIGHT)  # Simpan sebagai tuple
+WINDOW_SIZE = (WINDOW_WIDTH, WINDOW_HEIGHT)
+FPS = 60
+TITLE = "Hollow Ascent - Dev Build"
 
-# Pengaturan fullscreen
-FULLSCREEN_WIDTH = 1920
-FULLSCREEN_HEIGHT = 1080
-FULLSCREEN_SIZE = (FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT)  # Simpan sebagai tuple
+# Warna (RGB)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (100, 100, 100)
+BLUE = (0, 0, 255)
+BG_COLOR = (20, 20, 30) 
 
-# Pengaturan game
-FPS = 60  # Frames Per Second
+# Fisika 
+GRAVITY = 0.8
+# [PERBAIKAN] Naikkan dari -16 ke -22 agar bisa naik ke platform setinggi 180-200px
+JUMP_STRENGTH = -22 
+TERMINAL_VELOCITY = 15
 
-# Pengaturan Player
-PLAYER_GRAVITY = 0.8
+# Player Stats
 PLAYER_SPEED = 5
-PLAYER_JUMP_STRENGTH = -16
 
-# Pengaturan Player Sprite
-PLAYER_SPRITE_PATH = 'assets/graphics/player/Battlemage Fantasy Character/Battlemage Complete (Sprite Sheet)'
-PLAYER_SCALE = 2.0  # Ukuran sprite (2.0 = 2x lebih besar)
-PLAYER_ANIMATION_SPEED = 0.15  # Kecepatan animasi (lebih kecil = lebih lambat)
+# Path Aset
+PLAYER_ASSET_PATH = 'assets/graphics/player/'
