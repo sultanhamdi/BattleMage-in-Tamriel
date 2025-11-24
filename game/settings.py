@@ -5,7 +5,7 @@ WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
 WINDOW_SIZE = (WINDOW_WIDTH, WINDOW_HEIGHT)
 FPS = 60
-TITLE = "Hollow Ascent - Dev Build"
+TITLE = "Battlemage In Tamriel"
 
 # Warna (RGB)
 WHITE = (255, 255, 255)
@@ -25,3 +25,7 @@ PLAYER_SPEED = 5
 
 # Path Aset
 PLAYER_ASSET_PATH = 'assets/graphics/player/'
+
+TILE_SIZE = 48  # Ukuran tile di layar (16px * 3 Scale)
+TILE_SCALE = 3  # Skala pembesaran
+TILESET_PATH = 'assets/graphics/tilesets/dungeon.png'

@@ -2,7 +2,8 @@ import pygame as pg
 import sys
 from game.settings import *
 from game.entities.player import Player
-from game.utils.camera import Camera # Import Kamera
+from game.utils.camera import Camera
+from game.level.level_manager import LevelManager # Import LevelManager
 
 class Game:
     def __init__(self):
@@ -12,25 +13,19 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         
-        # 1. Spawn player
-        self.player = Player(100, WINDOW_HEIGHT - 150)
+        # 1. Spawn player (Posisi sementara, nanti kita ambil dari map)
+        self.player = Player(100, 100)
         
         # 2. Inisialisasi Kamera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # 3. Level Dummy (Ditambah platform jauh di X=1200++ untuk tes scroll)
-        self.platforms = [
-            # Lantai awal
-            pg.Rect(0, WINDOW_HEIGHT - 40, WINDOW_WIDTH, 40), 
-            # Platform lompatan awal
-            pg.Rect(300, 500, 200, 20),
-            pg.Rect(600, 400, 200, 20),
-            pg.Rect(100, 300, 150, 20),
-            # [BARU] Platform Jauh (Coba jalan ke kanan untuk menemukannya)
-            pg.Rect(1200, 500, 200, 20), 
-            pg.Rect(1500, 400, 200, 20),
-            pg.Rect(1800, 600, 500, 40), # Lantai jauh
-        ]
+        # 3. [BARU] Setup Level Manager
+        self.level_manager = LevelManager()
+        
+        # Generate Rects dan Gambar dari Map Teks
+        # self.platforms: Untuk collision (Fisika)
+        # self.visual_tiles: Untuk digambar (Visual)
+        self.platforms, self.visual_tiles = self.level_manager.create_level()
 
     def events(self):
         for event in pg.event.get():
@@ -51,25 +46,23 @@ class Game:
                     self.player.jump()
 
     def update(self):
-        # Update Player
+        # Update Player (cek tabrakan dengan rects dari level manager)
         self.player.update(self.platforms)
         
-        # [KAMERA] Update posisi kamera mengikuti player
+        # Update Kamera
         self.camera.follow(self.player.rect)
 
     def draw(self):
         self.screen.fill(BG_COLOR)
         
-        # [KAMERA] Gambar Platform dengan Offset
-        for plat in self.platforms:
-            # Buat salinan rect visual yang sudah digeser kamera
-            draw_plat = plat.copy()
-            draw_plat.x -= self.camera.offset.x
-            draw_plat.y -= self.camera.offset.y
-            pg.draw.rect(self.screen, GRAY, draw_plat)
+        # [BARU] Gambar Tileset (Lantai Bergambar)
+        for img, rect in self.visual_tiles:
+            # Terapkan Offset Kamera
+            draw_pos_x = rect.x - self.camera.offset.x
+            draw_pos_y = rect.y - self.camera.offset.y
+            self.screen.blit(img, (draw_pos_x, draw_pos_y))
 
-        # [KAMERA] Gambar Player dengan Offset
-        # Kita kirim data offset kamera ke fungsi draw player
+        # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
         
         pg.display.flip()
