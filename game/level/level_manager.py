@@ -1,15 +1,23 @@
 import pygame as pg
-from game.settings import TILE_SIZE, TILE_SCALE, TILESET_PATH
+
+TILE_SIZE = 48  # Ukuran tile di layar (16px * 3 Scale)
+TILE_SCALE = 3  # Skala pembesaran
+THEMES = {
+    'dungeon': 'assets/graphics/tilesets/dungeon.png',
+    'grass':   'assets/graphics/tilesets/grass.png',
+    'ice':     'assets/graphics/tilesets/ice.png',
+    'snow':    'assets/graphics/tilesets/snow.png',
+    # Tambahkan lainnya di sini
+}
 
 class LevelManager:
-    def __init__(self):
+    # [UBAH] Tambahkan parameter 'current_theme'
+    def __init__(self, current_theme='dungeon'):
         self.tile_images = {}
+        self.theme = current_theme # Simpan tema yang dipilih
         self.load_assets()
         
-        # Ini adalah Peta Level kita!
-        # X = Lantai/Dinding
-        # P = Posisi Awal Player (Nanti kita implementasikan spawn point)
-        # Spasi = Kosong/Udara
+        # Peta Level (Bisa diganti-ganti nanti)
         self.level_map = [
             "                            ",
             "                            ",
@@ -20,60 +28,54 @@ class LevelManager:
             "      XXX        XXX        ",
             "                            ",
             " XXX                  XXX   ",
-            " XXXXXXXXXXXXXXXXXXXXXXXX   ", # Lantai Dasar
-            " XXXXXXXXXXXXXXXXXXXXXXXX   ",
+            "XXXXXXXXXXXXXXXXXXXXXXXXXXX",
+            "XXXXXXXXXXXXXXXXXXXXXXXXXXX",
         ]
 
     def load_assets(self):
-        """Memuat dan memotong tileset"""
+        """Memuat tileset berdasarkan TEMA yang dipilih"""
+        # Ambil path dari dictionary THEMES di settings.py
+        path = THEMES.get(self.theme)
+        
+        if not path:
+            print(f"[ERROR] Tema '{self.theme}' tidak ditemukan di settings.py!")
+            return
+
         try:
-            # Load gambar utuh
-            tileset = pg.image.load(TILESET_PATH).convert_alpha()
+            # Load gambar sesuai tema
+            tileset = pg.image.load(path).convert_alpha()
             
-            # --- POTONG GAMBAR (SLICING) ---
-            # Tileset 0x72 biasanya ukurannya 16x16 per kotak.
-            # Mari kita ambil gambar "Bata Gelap" yang umum.
-            # Koordinat biasanya: x=16, y=16 (Baris ke-2, Kolom ke-2 biasanya bata tengah)
-            # Anda bisa bereksperimen mengganti rect ini (x, y, 16, 16) untuk ganti gambar
-            
-            # Ambil potongan 16x16
+            # --- LOGIKA PEMOTONGAN (SLICING) ---
+            # Kita asumsikan semua tileset punya layout yang mirip (standar 0x72)
+            # Ambil kotak tengah (biasanya x=16, y=16 aman untuk semua tileset ini)
             rect_source = (16, 16, 16, 16) 
             image = tileset.subsurface(rect_source)
             
-            # Perbesar gambar (Scale)
+            # Perbesar gambar
             image = pg.transform.scale(image, (TILE_SIZE, TILE_SIZE))
             
-            # Simpan dengan kunci 'X'
             self.tile_images['X'] = image
+            print(f"[INFO] Sukses memuat tema: {self.theme}")
             
-            print("[INFO] Tileset loaded.")
         except Exception as e:
-            print(f"[ERROR] Gagal load tileset: {e}")
-            # Fallback: Bikin kotak merah kalau gambar gagal load
+            print(f"[ERROR] Gagal load tileset {path}: {e}")
             fallback = pg.Surface((TILE_SIZE, TILE_SIZE))
             fallback.fill((150, 50, 50))
             self.tile_images['X'] = fallback
 
     def create_level(self):
-        """
-        Menerjemahkan Array Teks menjadi Rect (Fisika) dan Gambar (Visual)
-        """
         physics_rects = []
-        visual_tiles = [] # List tuple: (image, (x, y))
+        visual_tiles = []
 
         for row_index, row in enumerate(self.level_map):
             for col_index, char in enumerate(row):
-                
-                # Hitung posisi pixel di layar
                 x = col_index * TILE_SIZE
                 y = row_index * TILE_SIZE
                 
                 if char == 'X':
-                    # 1. Buat Rect untuk Fisika
                     rect = pg.Rect(x, y, TILE_SIZE, TILE_SIZE)
                     physics_rects.append(rect)
                     
-                    # 2. Simpan Gambar untuk Visual
                     img = self.tile_images.get('X')
                     if img:
                         visual_tiles.append((img, rect))

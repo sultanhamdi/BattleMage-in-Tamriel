@@ -1,5 +1,10 @@
 import pygame as pg
-from game.settings import GRAVITY, TERMINAL_VELOCITY, JUMP_STRENGTH
+
+# Fisika 
+GRAVITY = 0.8
+# [PERBAIKAN] Naikkan dari -16 ke -22 agar bisa naik ke platform setinggi 180-200px
+JUMP_STRENGTH = -22 
+TERMINAL_VELOCITY = 15
 
 class PhysicsComponent:
     def __init__(self, rect):

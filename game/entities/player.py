@@ -1,7 +1,10 @@
 import pygame as pg
-from game.settings import PLAYER_SPEED, PLAYER_ASSET_PATH, BLUE
-from game.components.physics_component import PhysicsComponent
-from game.utils.animation_handler import AnimationHandler
+from game.settings import BLUE
+from game.components.physics import PhysicsComponent
+from game.utils.player_animation_handler import PlayerAnimationHandler, PLAYER_ASSET_PATH
+
+# player stats
+PLAYER_SPEED = 7
 
 class Player:
     def __init__(self, x, y):
@@ -15,7 +18,7 @@ class Player:
         self.rect = pg.Rect(x, y, 40, 80) 
         
         self.physics = PhysicsComponent(self.rect)
-        self.animator = AnimationHandler(PLAYER_ASSET_PATH, self.frame_width, self.frame_height, self.scale)
+        self.animator = PlayerAnimationHandler(PLAYER_ASSET_PATH, self.frame_width, self.frame_height, self.scale)
 
         self.animation_types = ['idle', 'run', 'jump', 'fall', 'attack1', 'death', 'hurt']
         self.animator.load_sprites(self.animation_types)

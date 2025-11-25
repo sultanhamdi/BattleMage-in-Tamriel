@@ -1,7 +1,10 @@
 import pygame as pg
 import os
 
-class AnimationHandler:
+# Path Aset
+PLAYER_ASSET_PATH = 'assets/graphics/player/'
+
+class PlayerAnimationHandler:
     def __init__(self, asset_path, frame_width, frame_height, scale=1):
         self.animations = {} 
         self.frame_index = 0

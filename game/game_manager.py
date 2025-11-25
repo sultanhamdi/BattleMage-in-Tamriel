@@ -20,7 +20,7 @@ class Game:
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
         # 3. [BARU] Setup Level Manager
-        self.level_manager = LevelManager()
+        self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects dan Gambar dari Map Teks
         # self.platforms: Untuk collision (Fisika)
@@ -42,7 +42,7 @@ class Game:
                     else:
                         self.screen = pg.display.set_mode(WINDOW_SIZE, pg.FULLSCREEN)
                 
-                if event.key == pg.K_SPACE or event.key == pg.K_w:
+                if event.key == pg.K_SPACE or event.key == pg.K_w or event.key == pg.K_UP:
                     self.player.jump()
 
     def update(self):
