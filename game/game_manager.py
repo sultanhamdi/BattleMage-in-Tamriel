@@ -13,13 +13,13 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         
-        # 1. Spawn player (Posisi sementara, nanti kita ambil dari map)
+        # 1. Spawn player (Posisi sementara)
         self.player = Player(100, 100)
         
         # 2. Inisialisasi Kamera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # 3. [BARU] Setup Level Manager
+        # 3. Setup Level Manager
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects dan Gambar dari Map Teks
@@ -42,22 +42,18 @@ class Game:
                     else:
                         self.screen = pg.display.set_mode(WINDOW_SIZE, pg.FULLSCREEN)
                 
-                if event.key == pg.K_SPACE or event.key == pg.K_w or event.key == pg.K_UP:
+                if event.key == pg.K_UP or event.key == pg.K_SPACE:
                     self.player.jump()
 
     def update(self):
-        # Update Player (cek tabrakan dengan rects dari level manager)
         self.player.update(self.platforms)
-        
-        # Update Kamera
         self.camera.follow(self.player.rect)
 
     def draw(self):
         self.screen.fill(BG_COLOR)
         
-        # [BARU] Gambar Tileset (Lantai Bergambar)
+        # Gambar Tileset
         for img, rect in self.visual_tiles:
-            # Terapkan Offset Kamera
             draw_pos_x = rect.x - self.camera.offset.x
             draw_pos_y = rect.y - self.camera.offset.y
             self.screen.blit(img, (draw_pos_x, draw_pos_y))

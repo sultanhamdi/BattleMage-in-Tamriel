@@ -8,13 +8,12 @@ PLAYER_ASSET_PATH = 'assets/graphics/player/'
 
 class Player(Entity): 
     def __init__(self, x, y):
-        # 1. TENTUKAN STATS KHUSUS PLAYER DI SINI
+        # STATS
         stats_hp = 100
         stats_attack = 25
-        stats_speed = 5
+        stats_speed = 8
 
-        # 2. INIT PARENT
-        # Kirim stats di atas ke Parent Class (Entity)
+        # INIT PARENT
         super().__init__(
             x=x, y=y, 
             width=40, height=80,    # Ukuran Hitbox Fisika
@@ -30,40 +29,80 @@ class Player(Entity):
         
         self.animator = PlayerAnimationHandler(PLAYER_ASSET_PATH, self.frame_width, self.frame_height, self.scale)
         
-        # Memuat semua jenis animasi termasuk combo attack
-        self.animation_types = ['idle', 'run', 'jump', 'fall', 'attack1', 'attack2', 'attack3', 'death', 'hurt']
+        # [UPDATE] Menambahkan 'crouch', 'crouch_attack', 'dash', 'spin_attack', 'sustain_arcane'
+        # 'spin_attack_effect' dan 'sustain_arcane_fire' diload terpisah karena beda ukuran
+        self.animation_types = [
+            'idle', 'run', 'jump', 'fall', 
+            'attack1', 'attack2', 'attack3', 
+            'death', 'hurt', 
+            'crouch', 'crouch_attack', 'dash',
+            'spin_attack', 'sustain_arcane'
+        ]
         self.animator.load_sprites(self.animation_types)
+        
+        # Load Spin Effect dengan ukuran khusus (64x32)
+        self.animator.load_custom_animation('spin_attack_effect', 64, 32)
+        
+        # Load Sustain Arcane Fire dengan ukuran khusus (72x32)
+        # Asset 72x576 (18 frames) -> 576/18 = 32 height
+        self.animator.load_custom_animation('sustain_arcane_fire', 72, 32)
 
-        # 4. SETUP COMBO SYSTEM
-        self.combo_count = 1      # Melacak urutan serangan (1 -> 2 -> 3)
-        self.combo_window = 1000  # Waktu toleransi (ms) untuk lanjut ke combo berikutnya
+        # 4. SETUP SYSTEM
+        self.combo_count = 1      
+        self.combo_window = 1000  
+        self.is_crouching = False # Flag status crouch
+
+        # 5. DASH SYSTEM
+        self.DASH_SPEED = 15
+        self.DASH_DURATION = 200 # ms
+        self.DASH_COOLDOWN = 1000 # ms
+        self.is_dashing = False
+        self.dash_timer = 0
+        self.last_dash_time = 0
+
+        # 6. SPIN ATTACK SYSTEM
+        self.SPIN_COOLDOWN = 2000 # ms
+        self.last_spin_time = 0
+
+        # 7. SUSTAIN ARCANE SYSTEM
+        self.ARCANE_COOLDOWN = 3000 # ms
+        self.last_arcane_time = 0
 
     def update_timers(self):
-        """
-        [OVERRIDE PARENT] 
-        Kita ganti logika timer parent khusus untuk Player.
-        PENTING: Player selesai menyerang BUKAN berdasarkan waktu (400ms),
-        tapi berdasarkan selesainya animasi dari AnimationHandler.
-        """
+        """Override Parent Timer Logic"""
         current_time = pg.time.get_ticks()
         
-        # 1. Cek Invincibility (Sama seperti parent)
+        # 1. Cek Invincibility
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
 
-        # 2. [BARU] Cek Attack Selesai Berdasarkan Animasi
-        # Ini mencegah animasi terpotong di tengah jalan
+        # 2. Cek Attack Selesai
         if self.is_attacking:
-            # Cek ke animator: "Apakah animasi attack sudah kelar?"
-            # Pastikan di player_animation_handler.py ada variabel self.animation_finished
             if self.animator.animation_finished:
                 self.is_attacking = False
-                self.animator.animation_finished = False # Reset flag
-                
-                # Jika animasi selesai, kembali ke idle jika masih hidup
+                self.animator.animation_finished = False 
                 if self.alive:
                     self.state = 'idle'
+
+        # 3. Cek Dash Selesai
+        if self.is_dashing:
+            if current_time - self.dash_timer > self.DASH_DURATION:
+                self.is_dashing = False
+                if self.alive:
+                    self.state = 'idle'
+
+        # 4. Cek Spin Attack Selesai
+        if self.state == 'spin_attack':
+            if self.animator.animation_finished:
+                self.state = 'idle'
+                self.animator.animation_finished = False
+
+        # 5. Cek Sustain Arcane Selesai
+        if self.state == 'sustain_arcane':
+            if self.animator.animation_finished:
+                self.state = 'idle'
+                self.animator.animation_finished = False
 
     def get_input(self):
         """Mengambil input keyboard khusus Player"""
@@ -72,68 +111,162 @@ class Player(Entity):
         keys = pg.key.get_pressed()
         x_velocity = 0
         
-        # Gerak Kiri Kanan
-        if keys[pg.K_LEFT] or keys[pg.K_a]:
-            x_velocity = -self.movement_speed
-        if keys[pg.K_RIGHT] or keys[pg.K_d]:
-            x_velocity = self.movement_speed
+        # --- LOGIKA DASH ---
+        # Jika sedang dash, abaikan input lain dan paksa gerak cepat
+        if self.is_dashing:
+            direction = 1 if self.physics.facing_right else -1
+            return self.DASH_SPEED * direction
+
+        # Input Dash (W)
+        if keys[pg.K_w] and self.alive:
+            self.start_dash()
+
+        # --- LOGIKA CROUCH ---
+        # Hanya bisa crouch jika di tanah
+        if keys[pg.K_DOWN] and self.physics.on_ground:
+            self.is_crouching = True
+            x_velocity = 0 # Tidak bisa jalan saat crouch
+        else:
+            self.is_crouching = False
             
-        # Input Serangan (Tombol J)
-        if keys[pg.K_j]:
+            # Gerak Kiri Kanan (Hanya jika TIDAK crouch)
+            if keys[pg.K_LEFT]:
+                x_velocity = -self.movement_speed
+            if keys[pg.K_RIGHT]:
+                x_velocity = self.movement_speed
+            
+        # Input Serangan (Tombol E)
+        if keys[pg.K_e]:
             self.attack() 
+            
+        # Input Spin Attack (Tombol Q)
+        if keys[pg.K_q]:
+            self.spin_attack()
+            
+        # Input Sustain Arcane (Tombol R)
+        if keys[pg.K_r]:
+            self.sustain_arcane()
             
         return x_velocity
 
+    def start_dash(self):
+        """Memulai aksi Dash"""
+        current_time = pg.time.get_ticks()
+        
+        # Cek Cooldown
+        if current_time - self.last_dash_time > self.DASH_COOLDOWN:
+            self.is_dashing = True
+            self.dash_timer = current_time
+            self.last_dash_time = current_time
+            self.state = 'dash'
+            
+            # Reset animasi dash agar main dari awal
+            self.animator.frame_index = 0
+            self.animator.animation_finished = False
+            
+            print("[ACTION] Player Dashes!")
+
     def attack(self):
-        """
-        Override method attack() milik Parent untuk logika Combo.
-        """
-        # Jangan menyerang jika sedang menyerang (tunggu animasi selesai) atau mati
-        if self.is_attacking or not self.alive:
+        """Logika Serangan (Combo & Crouch Attack)"""
+        # Jangan menyerang jika sedang menyerang, dash, spin, arcane, atau mati
+        if self.is_attacking or self.is_dashing or self.state == 'spin_attack' or self.state == 'sustain_arcane' or not self.alive:
             return
 
         current_time = pg.time.get_ticks()
+        
+        # --- 1. LOGIKA CROUCH ATTACK ---
+        if self.is_crouching:
+            self.is_attacking = True
+            self.last_attack_time = current_time
+            
+            # Reset animasi
+            self.animator.frame_index = 0
+            self.animator.animation_finished = False
+            
+            self.state = 'crouch_attack'
+            print("[ACTION] Player performs Crouch Attack")
+            return
+
+        # --- 2. LOGIKA NORMAL COMBO ---
         time_since_last = current_time - self.last_attack_time
 
-        # --- LOGIKA COMBO ---
-        # Jika waktu antar serangan masih dalam toleransi window, lanjut combo
         if time_since_last < self.combo_window:
             self.combo_count += 1
         else:
-            self.combo_count = 1 # Reset ke serangan pertama jika terlalu lama
+            self.combo_count = 1 
 
-        # Jika combo melebihi 3, reset balik ke 1
         if self.combo_count > 3:
             self.combo_count = 1
             
-        # Set State Parent
         self.is_attacking = True
         self.last_attack_time = current_time
         
-        # Reset animator agar animasi mulai dari frame 0 lagi (PENTING)
         self.animator.frame_index = 0
         self.animator.animation_finished = False
         
-        # Tentukan animasi berdasarkan combo_count
         self.state = f'attack{self.combo_count}' 
+        print(f"[ACTION] Player Combo #{self.combo_count}")
+
+    def spin_attack(self):
+        """Memulai Spin Attack"""
+        if not self.alive or self.state == 'spin_attack':
+            return
+
+        current_time = pg.time.get_ticks()
         
-        print(f"[ACTION] Player performs Combo #{self.combo_count} ({self.state})")
+        if current_time - self.last_spin_time > self.SPIN_COOLDOWN:
+            self.state = 'spin_attack'
+            self.last_spin_time = current_time
+            
+            self.animator.frame_index = 0
+            self.animator.animation_finished = False
+            
+            print("[ACTION] Player performs Spin Attack!")
+
+    def sustain_arcane(self):
+        """Memulai Sustain Arcane Attack"""
+        if not self.alive or self.state == 'sustain_arcane':
+            return
+
+        current_time = pg.time.get_ticks()
+        
+        if current_time - self.last_arcane_time > self.ARCANE_COOLDOWN:
+            self.state = 'sustain_arcane'
+            self.last_arcane_time = current_time
+            
+            self.animator.frame_index = 0
+            self.animator.animation_finished = False
+            
+            print("[ACTION] Player performs Sustain Arcane!")
 
     def get_status(self, x_velocity):
-        """Menentukan State Animasi berdasarkan kondisi Fisika & Combat"""
+        """State Machine"""
         if not self.alive:
             self.state = 'death'
             return
 
-        # Prioritas 1: Attack (Pastikan nama state sesuai combo)
+        # Prioritas 0: Dash
+        if self.is_dashing:
+            self.state = 'dash'
+            return
+
+        # Prioritas 0.5: Spin Attack & Sustain Arcane (Lock State)
+        if self.state == 'spin_attack' or self.state == 'sustain_arcane':
+            return
+
+        # Prioritas 1: Attack
         if self.is_attacking:
+            # Jika sedang crouch attack, biarkan state-nya tetap 'crouch_attack'
+            if self.state == 'crouch_attack':
+                return
+            # Jika normal combo, update sesuai combo count
             self.state = f'attack{self.combo_count}'
             return
         
         if self.is_invincible and self.state == 'hurt': 
             return
 
-        # Prioritas 2: Udara (Fisika)
+        # Prioritas 2: Udara
         if self.physics.velocity.y < 0:
             self.state = 'jump'
         elif self.physics.velocity.y > 1:
@@ -141,40 +274,34 @@ class Player(Entity):
         
         # Prioritas 3: Tanah
         else:
-            if x_velocity != 0 and self.physics.on_ground: 
+            if self.is_crouching:
+                self.state = 'crouch'
+            elif x_velocity != 0: 
                  self.state = 'run'
-            elif self.physics.on_ground: 
+            else: 
                  self.state = 'idle'
 
     def jump(self):
-        # Override jump untuk memastikan tidak lompat saat serang/mati
-        if self.alive and not self.is_attacking:
+        # Tidak bisa lompat saat crouch atau attack
+        if self.alive and not self.is_attacking and not self.is_crouching and self.state != 'spin_attack' and self.state != 'sustain_arcane':
             self.physics.jump()
 
     def update(self, platforms):
-        # 1. Panggil update_timers milik PLAYER (yang sudah di-override)
-        # Jangan panggil super().update() karena kita ingin pakai logika timer kita sendiri
         self.update_timers()
-        
-        # 2. Logika Gerak Child
         x_vel = self.get_input()
         
         if self.alive:
-            # Update Fisika (Komponen milik Parent)
             self.physics.update(platforms, x_vel)
         
-        # 3. Update State Animasi
         self.get_status(x_vel)
 
     def draw(self, surface, camera_offset):
-        # 4. Render (Logika gambar Child menggunakan Animator)
         current_frame = self.animator.animate(self.state, 0.1, self.physics.facing_right)
 
         if current_frame:
             img_width = current_frame.get_width()
             img_height = current_frame.get_height()
             
-            # Hitung offset agar gambar pas di tengah hitbox
             offset_x = (img_width - self.rect.width) // 2
             offset_y = img_height - self.rect.height
             
@@ -182,8 +309,63 @@ class Player(Entity):
             draw_pos_y = self.rect.y - camera_offset.y - offset_y
             
             surface.blit(current_frame, (draw_pos_x, draw_pos_y))
+            
+            # --- DRAW OVERLAY EFFECT (SPIN ATTACK) ---
+            if self.state == 'spin_attack':
+                frame_idx = int(self.animator.frame_index)
+                # Effect mulai di frame 5, durasi 7 frame
+                if 5 <= frame_idx < 5 + 7:
+                    effect_idx = frame_idx - 5
+                    effect_frames = self.animator.animations.get('spin_attack_effect')
+                    
+                    if effect_frames and effect_idx < len(effect_frames):
+                        effect_img = effect_frames[effect_idx]
+                        if not self.physics.facing_right:
+                            effect_img = pg.transform.flip(effect_img, True, False)
+                            
+                        # Center effect on player
+                        eff_w = effect_img.get_width()
+                        eff_h = effect_img.get_height()
+                        
+                        eff_x = self.rect.centerx - camera_offset.x - (eff_w // 2)
+                        eff_y = self.rect.centery - camera_offset.y - (eff_h // 2)
+                        
+                        surface.blit(effect_img, (eff_x, eff_y))
+
+            # --- DRAW OVERLAY EFFECT (SUSTAIN ARCANE) ---
+            if self.state == 'sustain_arcane':
+                # Player punya 6 frame, Effect punya 4 frame
+                # Kita loop effect-nya atau clamp
+                frame_idx = int(self.animator.frame_index)
+                
+                effect_frames = self.animator.animations.get('sustain_arcane_fire')
+                if effect_frames:
+                    # Loop effect index: 0, 1, 2, 3, 0, 1...
+                    effect_idx = frame_idx % len(effect_frames)
+                    
+                    effect_img = effect_frames[effect_idx]
+                    if not self.physics.facing_right:
+                        effect_img = pg.transform.flip(effect_img, True, False)
+                        
+                    # Position effect in front of player (Long Ranged)
+                    # Align with hand (Visual is wider than hitbox)
+                    eff_w = effect_img.get_width()
+                    eff_h = effect_img.get_height()
+                    
+                    # Hitbox width = 40, Visual width = 56. Diff = 16. Side = 8.
+                    offset_dist = 8 # Tepat di luar frame visual
+                    
+                    if self.physics.facing_right:
+                        eff_x = self.rect.right - camera_offset.x + offset_dist
+                    else:
+                        eff_x = self.rect.left - camera_offset.x - eff_w - offset_dist
+                        
+                    eff_y = self.rect.centery - camera_offset.y - (eff_h // 2) - 10 # Move up to shoulder
+                    
+                    surface.blit(effect_img, (eff_x, eff_y))
+
         else:
-            # Fallback (Kotak Biru)
+            # Fallback
             color = BLUE
             draw_rect = self.rect.copy()
             draw_rect.x -= camera_offset.x
