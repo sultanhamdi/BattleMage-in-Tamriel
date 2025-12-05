@@ -13,19 +13,17 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         
-        # 1. Spawn player (Posisi sementara)
-        self.player = Player(100, 100)
-        
-        # 2. Inisialisasi Kamera
+        # 1. Inisialisasi Kamera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # 3. Setup Level Manager
+        # 2. Setup Level Manager
         self.level_manager = LevelManager(current_theme='dungeon')
         
-        # Generate Rects dan Gambar dari Map Teks
-        # self.platforms: Untuk collision (Fisika)
-        # self.visual_tiles: Untuk digambar (Visual)
-        self.platforms, self.visual_tiles = self.level_manager.create_level()
+        # Generate Rects, Gambar, dan Spawn Point dari Map
+        self.platforms, self.visual_tiles, spawn_point = self.level_manager.create_level()
+        
+        # 3. Spawn player (Gunakan posisi dari Level)
+        self.player = Player(spawn_point[0], spawn_point[1])
 
     def events(self):
         for event in pg.event.get():

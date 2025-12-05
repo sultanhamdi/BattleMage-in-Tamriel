@@ -1,5 +1,5 @@
 import pygame as pg
-from game.settings import BLUE
+from game.settings import BLUE, SCALE
 from game.entities.entities import Entity # Import Parent Class
 from game.utils.player_animation_handler import PlayerAnimationHandler
 
@@ -25,7 +25,7 @@ class Player(Entity):
         # 3. SETUP VISUAL (Tugas Child)
         self.frame_width = 56   
         self.frame_height = 48  
-        self.scale = 3 
+        self.scale = SCALE 
         
         self.animator = PlayerAnimationHandler(PLAYER_ASSET_PATH, self.frame_width, self.frame_height, self.scale)
         

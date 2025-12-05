@@ -11,3 +11,8 @@ BLACK = (0, 0, 0)
 GRAY = (100, 100, 100)
 BLUE = (0, 0, 255)
 BG_COLOR = (20, 20, 30) 
+
+# Level Settings
+TILE_SIZE = 16
+SCALE = 3
+SCALED_TILE_SIZE = TILE_SIZE * SCALE
