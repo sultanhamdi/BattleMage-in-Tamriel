@@ -3,7 +3,7 @@ import sys
 from game.settings import *
 from game.entities.player import Player
 from game.utils.camera import Camera
-from game.level.level_manager import LevelManager # Import LevelManager
+from game.level.level_manager import LevelManager
 
 class Game:
     def __init__(self):
@@ -13,16 +13,33 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         
-        # 1. Inisialisasi Kamera
+        # Inisialisasi Kamera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # 2. Setup Level Manager
+        # Setup Level Manager
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects, Gambar, dan Spawn Point dari Map
         self.platforms, self.visual_tiles, spawn_point = self.level_manager.create_level()
         
-        # 3. Spawn player (Gunakan posisi dari Level)
+        # Hitung Ukuran Level (World Size)
+        max_x = 0
+        max_y = 0
+        if self.visual_tiles:
+            max_x = max(r.right for _, r in self.visual_tiles)
+            max_y = max(r.bottom for _, r in self.visual_tiles)
+        else:
+            max_x = WINDOW_WIDTH
+            max_y = WINDOW_HEIGHT
+            
+        # Tambahkan sedikit padding
+        level_width = max(WINDOW_WIDTH, max_x)
+        level_height = max(WINDOW_HEIGHT, max_y)
+
+        # Generate World Background
+        self.background = self.level_manager.create_world_background(level_width, level_height)
+        
+        # Spawn player
         self.player = Player(spawn_point[0], spawn_point[1])
 
     def events(self):
@@ -48,7 +65,10 @@ class Game:
         self.camera.follow(self.player.rect)
 
     def draw(self):
-        self.screen.fill(BG_COLOR)
+        # Draw Background
+        bg_x = -self.camera.offset.x
+        bg_y = -self.camera.offset.y
+        self.screen.blit(self.background, (bg_x, bg_y))
         
         # Gambar Tileset
         for img, rect in self.visual_tiles:

@@ -16,3 +16,7 @@ BG_COLOR = (20, 20, 30)
 TILE_SIZE = 16
 SCALE = 3
 SCALED_TILE_SIZE = TILE_SIZE * SCALE
+
+BACKGROUNDS = {
+    'dungeon': 'assets/graphics/tilesets/dungeon_bg.png',    
+}

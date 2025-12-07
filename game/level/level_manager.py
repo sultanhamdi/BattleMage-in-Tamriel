@@ -1,6 +1,6 @@
 import pygame as pg
 import os
-from game.settings import TILE_SIZE, SCALE, SCALED_TILE_SIZE
+from game.settings import TILE_SIZE, SCALE, SCALED_TILE_SIZE, BACKGROUNDS
 import game.level.level1 as level1
 
 THEMES = {
@@ -16,7 +16,6 @@ class LevelManager:
         self.theme = current_theme
         
         # Mapping Karakter -> Koordinat Tileset (Col, Row)
-        # Asumsi Tileset Dungeon 16x16
         self.tile_map_coords = {
             'X': (1, 0), # Dinding Atas
             '#': (1, 1), # Dinding Tengah/Tiang
@@ -60,6 +59,33 @@ class LevelManager:
         except Exception as e:
             print(f"[ERROR] Failed to load tileset: {e}")
 
+    def create_world_background(self, width, height):
+        """Creates a world-sized background by tiling the theme's bg image"""
+        bg_surface = pg.Surface((width, height))
+        bg_path = BACKGROUNDS.get(self.theme)
+        
+        if not bg_path or not os.path.exists(bg_path):
+            bg_surface.fill((20, 20, 30))
+            return bg_surface
+            
+        try:
+            bg_image = pg.image.load(bg_path).convert()
+            target_scale = (1280, 720) 
+            bg_image = pg.transform.scale(bg_image, target_scale)
+            
+            # Tiling Loop
+            for x in range(0, width, target_scale[0]):
+                for y in range(0, height, target_scale[1]):
+                    bg_surface.blit(bg_image, (x, y))
+                    
+            return bg_surface
+        except Exception as e:
+            print(f"[ERROR] Failed to create world background: {e}")
+            bg_surface.fill((20, 20, 30))
+            return bg_surface
+
+
+
     def create_level(self):
         physics_rects = []
         visual_tiles = []
@@ -80,7 +106,6 @@ class LevelManager:
                     visual_tiles.append((img, rect))
                     
                     # Physics (Hanya dinding dan platform yang solid)
-                    # Kita bisa filter char apa saja yang solid
                     if char in ['X', '#', '=', '_']:
                         physics_rects.append(rect)
         

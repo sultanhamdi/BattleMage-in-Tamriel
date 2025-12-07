@@ -1,6 +1,6 @@
 import pygame as pg
 from game.settings import BLUE, SCALE
-from game.entities.entities import Entity # Import Parent Class
+from game.entities.entities import Entity
 from game.utils.player_animation_handler import PlayerAnimationHandler
 
 # Path aset lokal untuk player
@@ -16,21 +16,18 @@ class Player(Entity):
         # INIT PARENT
         super().__init__(
             x=x, y=y, 
-            width=40, height=80,    # Ukuran Hitbox Fisika
+            width=40, height=80,    # Ukuran Hitbox
             max_hp=stats_hp, 
             attack_power=stats_attack, 
             speed=stats_speed
         )
         
-        # 3. SETUP VISUAL (Tugas Child)
+        # SETUP VISUAL
         self.frame_width = 56   
         self.frame_height = 48  
         self.scale = SCALE 
         
         self.animator = PlayerAnimationHandler(PLAYER_ASSET_PATH, self.frame_width, self.frame_height, self.scale)
-        
-        # [UPDATE] Menambahkan 'crouch', 'crouch_attack', 'dash', 'spin_attack', 'sustain_arcane'
-        # 'spin_attack_effect' dan 'sustain_arcane_fire' diload terpisah karena beda ukuran
         self.animation_types = [
             'idle', 'run', 'jump', 'fall', 
             'attack1', 'attack2', 'attack3', 
@@ -40,19 +37,18 @@ class Player(Entity):
         ]
         self.animator.load_sprites(self.animation_types)
         
-        # Load Spin Effect dengan ukuran khusus (64x32)
+        # Load Spin Effect (64x32)
         self.animator.load_custom_animation('spin_attack_effect', 64, 32)
         
-        # Load Sustain Arcane Fire dengan ukuran khusus (72x32)
-        # Asset 72x576 (18 frames) -> 576/18 = 32 height
+        # Load Sustain Arcane Fire (72x32)
         self.animator.load_custom_animation('sustain_arcane_fire', 72, 32)
 
-        # 4. SETUP SYSTEM
+        # SETUP SYSTEM
         self.combo_count = 1      
         self.combo_window = 1000  
         self.is_crouching = False # Flag status crouch
 
-        # 5. DASH SYSTEM
+        # DASH SYSTEM
         self.DASH_SPEED = 15
         self.DASH_DURATION = 200 # ms
         self.DASH_COOLDOWN = 1000 # ms
@@ -60,11 +56,11 @@ class Player(Entity):
         self.dash_timer = 0
         self.last_dash_time = 0
 
-        # 6. SPIN ATTACK SYSTEM
+        # SPIN ATTACK SYSTEM
         self.SPIN_COOLDOWN = 2000 # ms
         self.last_spin_time = 0
 
-        # 7. SUSTAIN ARCANE SYSTEM
+        # SUSTAIN ARCANE SYSTEM
         self.ARCANE_COOLDOWN = 3000 # ms
         self.last_arcane_time = 0
 
@@ -72,12 +68,12 @@ class Player(Entity):
         """Override Parent Timer Logic"""
         current_time = pg.time.get_ticks()
         
-        # 1. Cek Invincibility
+        # Cek Invincibility
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
 
-        # 2. Cek Attack Selesai
+        # Cek Attack Selesai
         if self.is_attacking:
             if self.animator.animation_finished:
                 self.is_attacking = False
@@ -85,20 +81,20 @@ class Player(Entity):
                 if self.alive:
                     self.state = 'idle'
 
-        # 3. Cek Dash Selesai
+        # Cek Dash Selesai
         if self.is_dashing:
             if current_time - self.dash_timer > self.DASH_DURATION:
                 self.is_dashing = False
                 if self.alive:
                     self.state = 'idle'
 
-        # 4. Cek Spin Attack Selesai
+        # Cek Spin Attack Selesai
         if self.state == 'spin_attack':
             if self.animator.animation_finished:
                 self.state = 'idle'
                 self.animator.animation_finished = False
 
-        # 5. Cek Sustain Arcane Selesai
+        # Cek Sustain Arcane Selesai
         if self.state == 'sustain_arcane':
             if self.animator.animation_finished:
                 self.state = 'idle'
@@ -111,7 +107,7 @@ class Player(Entity):
         keys = pg.key.get_pressed()
         x_velocity = 0
         
-        # --- LOGIKA DASH ---
+        # LOGIKA DASH
         # Jika sedang dash, abaikan input lain dan paksa gerak cepat
         if self.is_dashing:
             direction = 1 if self.physics.facing_right else -1
@@ -121,7 +117,7 @@ class Player(Entity):
         if keys[pg.K_w] and self.alive:
             self.start_dash()
 
-        # --- LOGIKA CROUCH ---
+        # LOGIKA CROUCH
         # Hanya bisa crouch jika di tanah
         if keys[pg.K_DOWN] and self.physics.on_ground:
             self.is_crouching = True
@@ -174,7 +170,7 @@ class Player(Entity):
 
         current_time = pg.time.get_ticks()
         
-        # --- 1. LOGIKA CROUCH ATTACK ---
+        # LOGIKA CROUCH ATTACK
         if self.is_crouching:
             self.is_attacking = True
             self.last_attack_time = current_time
@@ -187,7 +183,7 @@ class Player(Entity):
             print("[ACTION] Player performs Crouch Attack")
             return
 
-        # --- 2. LOGIKA NORMAL COMBO ---
+        # LOGIKA NORMAL COMBO
         time_since_last = current_time - self.last_attack_time
 
         if time_since_last < self.combo_window:
@@ -310,7 +306,7 @@ class Player(Entity):
             
             surface.blit(current_frame, (draw_pos_x, draw_pos_y))
             
-            # --- DRAW OVERLAY EFFECT (SPIN ATTACK) ---
+            # DRAW OVERLAY EFFECT (SPIN ATTACK)
             if self.state == 'spin_attack':
                 frame_idx = int(self.animator.frame_index)
                 # Effect mulai di frame 5, durasi 7 frame
@@ -332,15 +328,12 @@ class Player(Entity):
                         
                         surface.blit(effect_img, (eff_x, eff_y))
 
-            # --- DRAW OVERLAY EFFECT (SUSTAIN ARCANE) ---
+            # DRAW OVERLAY EFFECT (SUSTAIN ARCANE)
             if self.state == 'sustain_arcane':
-                # Player punya 6 frame, Effect punya 4 frame
-                # Kita loop effect-nya atau clamp
                 frame_idx = int(self.animator.frame_index)
                 
                 effect_frames = self.animator.animations.get('sustain_arcane_fire')
                 if effect_frames:
-                    # Loop effect index: 0, 1, 2, 3, 0, 1...
                     effect_idx = frame_idx % len(effect_frames)
                     
                     effect_img = effect_frames[effect_idx]
@@ -348,19 +341,18 @@ class Player(Entity):
                         effect_img = pg.transform.flip(effect_img, True, False)
                         
                     # Position effect in front of player (Long Ranged)
-                    # Align with hand (Visual is wider than hitbox)
                     eff_w = effect_img.get_width()
                     eff_h = effect_img.get_height()
                     
                     # Hitbox width = 40, Visual width = 56. Diff = 16. Side = 8.
-                    offset_dist = 8 # Tepat di luar frame visual
+                    offset_dist = 8
                     
                     if self.physics.facing_right:
                         eff_x = self.rect.right - camera_offset.x + offset_dist
                     else:
                         eff_x = self.rect.left - camera_offset.x - eff_w - offset_dist
                         
-                    eff_y = self.rect.centery - camera_offset.y - (eff_h // 2) - 10 # Move up to shoulder
+                    eff_y = self.rect.centery - camera_offset.y - (eff_h // 2) - 10
                     
                     surface.blit(effect_img, (eff_x, eff_y))
 
