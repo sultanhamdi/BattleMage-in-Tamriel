@@ -3,6 +3,7 @@ import os
 from game.settings import TILE_SIZE, SCALE, SCALED_TILE_SIZE, BACKGROUNDS
 import game.level.level1 as level1
 import game.level.level2 as level2
+import game.level.level3 as level3
 
 THEMES = {
     'dungeon': 'assets/graphics/tilesets/dungeon.png',
@@ -25,7 +26,7 @@ class LevelManager:
         self.load_assets()
         
         # Level Management
-        self.levels = [level1.level_data, level2.level_data]
+        self.levels = [level1.level_data, level2.level_data, level3.level_data]
         self.current_level_index = 0
         self.level_map = self.levels[self.current_level_index]
 
