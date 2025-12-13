@@ -5,31 +5,6 @@ from game.entities.player import Player
 from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
 
-# Import Enemy Classes
-from game.entities.enemies import Zombie, Golem, Vampire
-
-# ===========================================
-# KONFIGURASI ENEMY SPAWN
-# ===========================================
-# Format: (EnemyClass, x, y)
-# Ubah list ini untuk mengatur jumlah dan posisi enemy
-# Posisi dalam pixel (sesuaikan dengan layout level)
-
-ENEMY_SPAWN_CONFIG = [
-    # --- ZOMBIE (Patrol di platform) ---
-    (Zombie, 400, 350),   # Zombie 1: Di platform tengah
-    (Zombie, 700, 350),   # Zombie 2: Di platform kanan
-    
-    # --- GOLEM (Diam sampai player mendekat) ---
-    (Golem, 900, 330),    # Golem: Di ujung kanan
-    
-    # --- VAMPIRE (Terbang) ---
-    (Vampire, 500, 150),  # Vampire: Di udara
-]
-
-# ===========================================
-
-
 class Game:
     def __init__(self):
         pg.init()
@@ -38,40 +13,42 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         
-        # 1. Spawn player (Posisi sementara, nanti kita ambil dari map)
-        self.player = Player(100, 100)
-        
-        # 2. Inisialisasi Kamera
+        # Inisialisasi Kamera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # 3. Setup Level Manager
+        # Setup Level Manager
         self.level_manager = LevelManager(current_theme='dungeon')
         
-        # Generate Rects dan Gambar dari Map Teks
-        # self.platforms: Untuk collision (Fisika)
-        # self.visual_tiles: Untuk digambar (Visual)
-        self.platforms, self.visual_tiles = self.level_manager.create_level()
+        # Generate Rects, Gambar, dan Spawn Point dari Map
+        self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
         
-        # 4. [BARU] Spawn Enemies dari Config
-        self.enemies = []
-        self.spawn_enemies()
+        # Hitung Ukuran Level (World Size)
+        max_x = 0
+        max_y = 0
+        if self.visual_tiles:
+            max_x = max(r.right for _, r in self.visual_tiles)
+            max_y = max(r.bottom for _, r in self.visual_tiles)
+        else:
+            max_x = WINDOW_WIDTH
+            max_y = WINDOW_HEIGHT
+            
+        # Tambahkan sedikit padding
+        level_width = max(WINDOW_WIDTH, max_x)
+        level_height = max(WINDOW_HEIGHT, max_y)
+        self.background = self.level_manager.create_world_background(level_width, level_height)
+        self.void_image = self.level_manager.tile_images.get('#')
         
-        # 5. [BARU] Combat tracking - supaya 1 serangan = 1 hit
-        self.player_hit_enemies = set()  # Set enemy yang sudah kena di serangan ini
-        self.enemy_hit_player = set()    # Set enemy yang sudah hit player di serangan ini
-
-    def spawn_enemies(self):
-        """
-        Spawn semua enemy berdasarkan ENEMY_SPAWN_CONFIG.
-        Dipanggil sekali saat game init.
-        """
-        for EnemyClass, x, y in ENEMY_SPAWN_CONFIG:
-            enemy = EnemyClass(x, y)
-            enemy.set_player_reference(self.player)  # Untuk AI detection
-            self.enemies.append(enemy)
-            print(f"[SPAWN] {EnemyClass.__name__} at ({x}, {y})")
+        # Spawn player
+        self.player = Player(spawn_point[0], spawn_point[1])
         
-        print(f"[INFO] Total enemies spawned: {len(self.enemies)}")
+        # Level Transition
+        self.finish_rect = finish_rect
+        self.transitioning = False
+        self.fade_alpha = 0
+        self.fade_speed = 5
+        self.fade_surface = pg.Surface(WINDOW_SIZE)
+        self.fade_surface.fill((0, 0, 0))
+        self.fade_state = 'IN'
 
     def events(self):
         for event in pg.event.get():
@@ -88,7 +65,7 @@ class Game:
                     else:
                         self.screen = pg.display.set_mode(WINDOW_SIZE, pg.FULLSCREEN)
                 
-                if event.key == pg.K_SPACE or event.key == pg.K_w or event.key == pg.K_UP:
+                if event.key == pg.K_UP or event.key == pg.K_SPACE:
                     self.player.jump()
 
     def check_player_attack_collision(self):
@@ -172,29 +149,101 @@ class Game:
         self.enemies = [e for e in self.enemies if e.alive or (not e.alive and e.animator.frame_index < len(e.animator.animations.get('die', [])) - 1)]
 
     def update(self):
-        # Update Player (cek tabrakan dengan rects dari level manager)
-        self.player.update(self.platforms)
+        # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
+        if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
+            self.player.update(self.platforms)
+            self.camera.follow(self.player.rect)
         
-        # [BARU] Update semua Enemy
-        for enemy in self.enemies:
-            enemy.update(self.platforms)
+        # Cek Finish Point Trigger
+        if self.finish_rect and not self.transitioning:
+            if self.player.rect.colliderect(self.finish_rect):
+                print("[EVENT] Player reached finish point! Starting transition...")
+                self.transitioning = True
+                self.fade_state = 'OUT' 
+
+        # Handle Transition Fade
+        if self.transitioning:
+            if self.fade_state == 'OUT':
+                self.fade_alpha += self.fade_speed
+                if self.fade_alpha >= 255:
+                    self.fade_alpha = 255
+                    # Layar sudah hitam pekat, Ganti Level
+                    self.change_level()
+                    self.fade_state = 'IN'
+            
+            elif self.fade_state == 'IN':
+                self.fade_alpha -= self.fade_speed
+                if self.fade_alpha <= 0:
+                    self.fade_alpha = 0
+                    self.transitioning = False
+                    
+    def change_level(self):
+        # Naikkan index level
+        next_level_index = self.level_manager.current_level_index + 1
         
-        # [BARU] Cek Combat Collisions
-        self.check_player_attack_collision()
-        self.check_enemy_attack_collision()
-        
-        # [BARU] Cleanup dead enemies
-        self.remove_dead_enemies()
-        
-        # Update Kamera
-        self.camera.follow(self.player.rect)
+        # Cek apakah level selanjutnya ada
+        if next_level_index < len(self.level_manager.levels):
+            print(f"[INFO] Loading Level {next_level_index + 1}...")
+            self.level_manager.set_level(next_level_index)
+            
+            # Re-Generate Level
+            self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+            self.finish_rect = finish_rect
+            
+            # Re-Calculate Background Size
+            max_x = 0
+            max_y = 0
+            if self.visual_tiles:
+                max_x = max(r.right for _, r in self.visual_tiles)
+                max_y = max(r.bottom for _, r in self.visual_tiles)
+            else:
+                max_x = WINDOW_WIDTH
+                max_y = WINDOW_HEIGHT
+            
+            level_width = max(WINDOW_WIDTH, max_x)
+            level_height = max(WINDOW_HEIGHT, max_y)
+            
+            # Re-Create Background (World Size)
+            self.background = self.level_manager.create_world_background(level_width, level_height)
+            self.void_image = self.level_manager.tile_images.get('#')
+            
+            # Reset Player Position & Camera
+            self.player.rect.topleft = spawn_point
+            self.player.physics.pos.x = spawn_point[0]
+            self.player.physics.pos.y = spawn_point[1]
+            self.player.physics.velocity.xy = (0, 0)
+            
+            self.camera.follow(self.player.rect)
+            
+        else:
+            print("[INFO] No more levels! Game Completed.")
+            self.level_manager.set_level(0)
+            self.change_level()
 
     def draw(self):
-        self.screen.fill(BG_COLOR)
+        # Draw Void Background (Infinite Wall)
+        if self.void_image:
+            # Hitung offset tile agar seamless
+            tile_w = self.void_image.get_width()
+            tile_h = self.void_image.get_height()
+            
+            start_x = -int(self.camera.offset.x) % tile_w
+            start_y = -int(self.camera.offset.y) % tile_h
+            
+            # Gambar dengan buffer ekstra agar tidak putus saat scrolling
+            for x in range(start_x - tile_w, WINDOW_WIDTH + tile_w, tile_w):
+                for y in range(start_y - tile_h, WINDOW_HEIGHT + tile_h, tile_h):
+                    self.screen.blit(self.void_image, (x, y))
+        else:
+            self.screen.fill(BG_COLOR)
         
-        # Gambar Tileset (Lantai Bergambar)
+        # Draw Level Background (Dungeon Image)
+        bg_x = -self.camera.offset.x
+        bg_y = -self.camera.offset.y
+        self.screen.blit(self.background, (bg_x, bg_y))
+        
+        # Gambar Tileset
         for img, rect in self.visual_tiles:
-            # Terapkan Offset Kamera
             draw_pos_x = rect.x - self.camera.offset.x
             draw_pos_y = rect.y - self.camera.offset.y
             self.screen.blit(img, (draw_pos_x, draw_pos_y))
@@ -205,6 +254,11 @@ class Game:
 
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
+        
+        # Draw Fade Overlay
+        if self.transitioning or self.fade_alpha > 0:
+            self.fade_surface.set_alpha(self.fade_alpha)
+            self.screen.blit(self.fade_surface, (0, 0))
         
         pg.display.flip()
 

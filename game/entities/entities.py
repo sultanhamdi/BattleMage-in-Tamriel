@@ -9,23 +9,22 @@ class Entity(pg.sprite.Sprite):
     def __init__(self, x, y, width, height, max_hp, attack_power, speed):
         super().__init__()
         
-        # --- 1. KOMPONEN FISIKA & POSISI ---
+        # KOMPONEN FISIKA & POSISI
         self.rect = pg.Rect(x, y, width, height)
         self.physics = PhysicsComponent(self.rect)
         
-        # --- 2. STATS (Diterima dari Child) ---
+        # STATS (Diterima dari Child)
         self.max_hp = max_hp
         self.current_hp = max_hp
         self.attack_power = attack_power
         self.movement_speed = speed 
         self.alive = True
         
-        # --- 3. STATE ANIMASI (String) ---
-        # Child class mengubah string ini, AnimationHandler membacanya.
+        # STATE ANIMASI (String)
         self.state = 'idle' 
         self.facing_right = True 
         
-        # --- 4. SISTEM COMBAT (Cooldown & I-Frames) ---
+        # SISTEM COMBAT (Cooldown & I-Frames)
         self.is_attacking = False
         self.attack_cooldown = 500 # ms (Jeda antar serangan)
         self.last_attack_time = 0
@@ -45,8 +44,6 @@ class Entity(pg.sprite.Sprite):
 
         # Reset Status Serang (Attack)
         if self.is_attacking:
-            # Asumsi durasi animasi attack rata-rata 400ms
-            # Jika sudah lewat, kembalikan ke idle agar bisa gerak lagi
             if current_time - self.last_attack_time > 400: 
                 self.is_attacking = False
                 if self.alive:
