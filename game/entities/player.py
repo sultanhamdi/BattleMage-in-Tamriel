@@ -11,7 +11,7 @@ class Player(Entity):
         # 1. TENTUKAN STATS KHUSUS PLAYER DI SINI
         stats_hp = 100
         stats_attack = 25
-        stats_speed = 5
+        stats_speed = 8
 
         # 2. INIT PARENT
         # Kirim stats di atas ke Parent Class (Entity)
