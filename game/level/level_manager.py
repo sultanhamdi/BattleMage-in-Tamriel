@@ -1,18 +1,22 @@
 import pygame as pg
 import os
-from game.settings import TILE_SIZE, SCALE, SCALED_TILE_SIZE, BACKGROUNDS
+import xml.etree.ElementTree as ET
+from game.settings import TILE_SIZE, SCALE, SCALED_TILE_SIZE, BACKGROUNDS, WINDOW_WIDTH, WINDOW_HEIGHT
 import game.level.level1 as level1
 import game.level.level2 as level2
 import game.level.level3 as level3
+import game.level.level4 as level4
 
 THEMES = {
     'dungeon': 'assets/graphics/tilesets/dungeon.png',
+    'snow': 'assets/graphics/tilesets/snow.png',
 }
 
 class LevelManager:
     def __init__(self, current_theme='dungeon'):
         self.tile_images = {}
         self.theme = current_theme
+        self.tileset_img = None # Store raw tileset for TMX
         
         # Mapping Karakter : Koordinat Tileset (Col, Row)
         self.tile_map_coords = {
@@ -26,7 +30,7 @@ class LevelManager:
         self.load_assets()
         
         # Level Management
-        self.levels = [level1.level_data, level2.level_data, level3.level_data]
+        self.levels = [level1.level_data, level2.level_data, level3.level_data, level4.level_data]
         self.current_level_index = 0
         self.level_map = self.levels[self.current_level_index]
 
@@ -34,6 +38,19 @@ class LevelManager:
         if 0 <= index < len(self.levels):
             self.current_level_index = index
             self.level_map = self.levels[index]
+            
+            # Dynamic Theme Switching
+            # Level 1-3 (Index 0-2) -> Dungeon
+            # Level 4+ (Index 3+) -> Snow
+            target_theme = 'dungeon'
+            if index >= 3:
+                target_theme = 'snow'
+                
+            if self.theme != target_theme:
+                print(f"[INFO] Switching theme to: {target_theme}")
+                self.theme = target_theme
+                self.load_assets()
+            
             return True
         return False
 
@@ -45,8 +62,11 @@ class LevelManager:
 
         try:
             tileset = pg.image.load(path).convert_alpha()
+            self.tileset_img = tileset # Store for TMX usage
             
+            # Old ASCII Map Loading Logic
             for char, (col, row) in self.tile_map_coords.items():
+                # Ambil potongan 16x16
                 rect_source = (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 
                 # Cek bounds
@@ -90,7 +110,11 @@ class LevelManager:
         bg_path = BACKGROUNDS.get(self.theme)
         
         if not bg_path or not os.path.exists(bg_path):
-            bg_surface.fill((20, 20, 30))
+            # Fallback color (Dark Blue for Snow, Dark Grey for Dungeon)
+            if self.theme == 'snow':
+                bg_surface.fill((20, 30, 45))
+            else:
+                bg_surface.fill((20, 20, 30))
             return bg_surface
             
         try:
@@ -109,9 +133,99 @@ class LevelManager:
             bg_surface.fill((20, 20, 30))
             return bg_surface
 
+    def load_tmx(self, filepath):
+        """Loads a Tiled .tmx file (XML format)"""
+        print(f"[INFO] Loading TMX: {filepath}")
+        try:
+            tree = ET.parse(filepath)
+            root = tree.getroot()
+            layer = root.find("layer")
+            data = layer.find("data").text.strip()
+            
+            width = int(layer.get("width"))
+            height = int(layer.get("height"))
+            
+            gid_list = [int(gid) for gid in data.replace("\n", "").split(",")]
+            
+            physics_rects = []
+            visual_tiles = []
+            spawn_point = (100, 100)
+            finish_rect = None
+            
+            # Use 'snow.png' logic (256px wide => 16 columns)
+            # Assumption: We are using self.tileset_img which should be loaded
+            if not self.tileset_img:
+                print("[ERROR] Tileset image not loaded for TMX!")
+                return physics_rects, visual_tiles, spawn_point, finish_rect
+                
+            cols_in_tileset = self.tileset_img.get_width() // TILE_SIZE
+            
+            for index, gid in enumerate(gid_list):
+                if gid == 0: continue # Empty tile
+                
+                # Calculate Grid Position
+                x = (index % width) * SCALED_TILE_SIZE
+                y = (index // width) * SCALED_TILE_SIZE
+                
+                # Tiled GIDs are 1-based, Python 0-based
+                real_gid = gid - 1
+                
+                # Calculate Source Rect
+                src_x = (real_gid % cols_in_tileset) * TILE_SIZE
+                src_y = (real_gid // cols_in_tileset) * TILE_SIZE
+                
+                # Extract Tile Image
+                tile_src_rect = (src_x, src_y, TILE_SIZE, TILE_SIZE)
+                if src_x + TILE_SIZE <= self.tileset_img.get_width() and \
+                   src_y + TILE_SIZE <= self.tileset_img.get_height():
+                    
+                    img = self.tileset_img.subsurface(tile_src_rect)
+                    img = pg.transform.scale(img, (SCALED_TILE_SIZE, SCALED_TILE_SIZE))
+                    
+                    dst_rect = pg.Rect(x, y, SCALED_TILE_SIZE, SCALED_TILE_SIZE)
+                    visual_tiles.append((img, dst_rect))
+                    
+                    # Assume ALL visible tiles are solid for now
+                    physics_rects.append(dst_rect)
+            
+            # Parse Objects (Spawn & Finish)
+            object_group = root.find("objectgroup")
+            if object_group:
+                for obj in object_group.findall("object"):
+                    name = obj.get("name")
+                    x = float(obj.get("x"))
+                    y = float(obj.get("y"))
+                    
+                    # Convert to Game World Coordinates (Scale)
+                    world_x = x * SCALE
+                    world_y = y * SCALE
+                    
+                    if name in ["P", "Spawn"]:
+                        spawn_point = (world_x, world_y)
+                        print(f"[INFO] TMX Spawn Point found: {spawn_point}")
+                        
+                    elif name in ["F", "Finish"]:
+                        # If object has width/height, use it. Otherwise default to 1 tile.
+                        w = float(obj.get("width", TILE_SIZE)) * SCALE
+                        h = float(obj.get("height", TILE_SIZE)) * SCALE
+                        finish_rect = pg.Rect(world_x, world_y, w, h)
+                        print(f"[INFO] TMX Finish Point found: {finish_rect}")
 
+            return physics_rects, visual_tiles, spawn_point, finish_rect
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to load TMX: {e}")
+            # Return defaults on failure, but try to return whatever we loaded if possible
+            if 'physics_rects' in locals():
+                return physics_rects, visual_tiles, spawn_point, finish_rect
+            return [], [], (0,0), None
 
     def create_level(self):
+        # Check if current map is TMX (String) or ASCII (List)
+        if isinstance(self.level_map, str) and self.level_map.endswith('.tmx'):
+            return self.load_tmx(self.level_map)
+            
+        # Legacy ASCII Loader
         physics_rects = []
         visual_tiles = []
         spawn_point = (100, 100) # Default spawn

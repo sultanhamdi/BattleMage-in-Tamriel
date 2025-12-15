@@ -35,6 +35,8 @@ class Game:
         # Tambahkan sedikit padding
         level_width = max(WINDOW_WIDTH, max_x)
         level_height = max(WINDOW_HEIGHT, max_y)
+        self.camera.set_world_size(level_width, level_height)
+        
         self.background = self.level_manager.create_world_background(level_width, level_height)
         self.void_image = self.level_manager.tile_images.get('#')
         
@@ -122,6 +124,7 @@ class Game:
             
             level_width = max(WINDOW_WIDTH, max_x)
             level_height = max(WINDOW_HEIGHT, max_y)
+            self.camera.set_world_size(level_width, level_height)
             
             # Re-Create Background (World Size)
             self.background = self.level_manager.create_world_background(level_width, level_height)
