@@ -8,6 +8,7 @@ import game.level.level3 as level3
 import game.level.level4 as level4
 import game.level.level5 as level5
 import game.level.level6 as level6
+import game.level.level7 as level7
 
 THEMES = {
     'dungeon': 'assets/graphics/tilesets/dungeon.png',
@@ -24,7 +25,7 @@ class LevelManager:
         self.load_assets()
         
         # Level Management
-        self.levels = [level1.level_data, level2.level_data, level3.level_data, level4.level_data, level5.level_data, level6.level_data]
+        self.levels = [level1.level_data, level2.level_data, level3.level_data, level4.level_data, level5.level_data, level6.level_data, level7.level_data]
         self.current_level_index = 0
         self.level_map = self.levels[self.current_level_index]
 
