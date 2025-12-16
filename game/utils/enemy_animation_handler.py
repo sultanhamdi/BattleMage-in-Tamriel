@@ -36,6 +36,7 @@ class EnemyAnimationHandler:
         self.current_animation = 'idle'
         self.path = asset_path
         self.scale = scale
+        self.current_frame = 0  # Integer frame index for state checking
         
         # Flag untuk memberi tahu Enemy bahwa animasi selesai
         # Berguna untuk animasi yang tidak loop (attack, die, appear)
@@ -126,12 +127,12 @@ class EnemyAnimationHandler:
                 self.animation_finished = True
                 self.frame_index = len(frames) - 1
             
-            # Animasi ATTACK: Tandai selesai, reset ke 0
-            elif 'attack' in state or 'hit' in state:
+            # Animasi ATTACK & HURT: Tandai selesai, reset ke 0
+            elif 'attack' in state or 'hit' in state or 'hurt' in state or state in ['take_hit', 'damaged']:
                 self.animation_finished = True
                 self.frame_index = 0
             
-            # Animasi LOOP biasa (idle, walk)
+            # Animasi LOOP biasa (idle, walk, run, chase)
             else:
                 self.frame_index = 0
         
@@ -139,11 +140,14 @@ class EnemyAnimationHandler:
         safe_index = int(self.frame_index)
         if safe_index >= len(frames):
             safe_index = len(frames) - 1
+        
+        # Update current_frame property
+        self.current_frame = safe_index
             
         image = frames[safe_index]
         
-        # Sprite default menghadap kiri, flip jika menghadap kanan
-        if facing_right:
+        # Sprite default menghadap KANAN, flip jika menghadap KIRI
+        if not facing_right:
             image = pg.transform.flip(image, True, False)
         
         return image

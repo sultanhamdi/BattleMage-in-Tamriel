@@ -1,4 +1,5 @@
 import pygame as pg
+import math
 from game.entities.enemies.enemy import BaseEnemy
 
 # Path aset lokal untuk Flying Eye
@@ -69,6 +70,7 @@ class FlyingEye(BaseEnemy):
         
         # 4. FLYING BEHAVIOR
         self.can_fly = True
+        self.has_gravity = False  # DISABLE GRAVITY FOR FLYING
         self.hover_amplitude = 10  # Naik-turun saat hover
         self.hover_speed = 0.05
         self.hover_offset = 0
@@ -123,7 +125,7 @@ class FlyingEye(BaseEnemy):
         # Hover effect saat idle
         if self.ai_state == self.STATE_IDLE:
             self.hover_offset += self.hover_speed
-            hover_y = pg.math.sin(self.hover_offset) * self.hover_amplitude
+            hover_y = math.sin(self.hover_offset) * self.hover_amplitude
             self.physics.rect.y += hover_y
         
         # Panggil update parent

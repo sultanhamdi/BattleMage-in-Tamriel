@@ -65,6 +65,7 @@ class PhysicsComponent:
             self.velocity.y = JUMP_STRENGTH
             self.on_ground = False
 
-    def update(self, platforms, x_velocity):
-        self.apply_gravity()
+    def update(self, platforms, x_velocity, apply_gravity=True):
+        if apply_gravity:
+            self.apply_gravity()
         self.move_and_collide(platforms, x_velocity)

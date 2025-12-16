@@ -67,7 +67,7 @@ class BaseEnemy(Entity):
         
         # 5. PATROL SETTINGS
         self.patrol_speed = speed * 0.5  # Patrol lebih lambat dari chase
-        self.patrol_direction = 1  # 1 = kanan, -1 = kiri
+        self.patrol_direction = -1  # 1 = kanan, -1 = kiri (START LEFT)
         self.patrol_distance = 200  # Jarak patrol dari titik spawn
         self.spawn_x = x  # Simpan posisi spawn untuk patrol
         
@@ -76,7 +76,10 @@ class BaseEnemy(Entity):
         
         # 7. FACING DIRECTION (untuk animasi)
         # Override dari physics component agar konsisten
-        self.facing_right = True
+        self.facing_right = False  # START FACING LEFT (sprites default kanan)
+        
+        # 8. GRAVITY FLAG (child class bisa disable untuk flying)
+        self.has_gravity = True  # Most enemies need gravity
 
     # ===========================================
     # SECTION: AI LOGIC (State Machine)
@@ -97,9 +100,9 @@ class BaseEnemy(Entity):
         if not self.player_ref or not self.player_ref.alive:
             return float('inf')
         
-        # Hitung jarak horizontal (untuk game platformer, biasanya cukup X)
-        dx = self.player_ref.rect.centerx - self.rect.centerx
-        dy = self.player_ref.rect.centery - self.rect.centery
+        # USE PHYSICS.RECT for accurate positions
+        dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
+        dy = self.player_ref.physics.rect.centery - self.physics.rect.centery
         
         # Euclidean distance
         distance = (dx**2 + dy**2) ** 0.5
@@ -113,9 +116,10 @@ class BaseEnemy(Entity):
         if not self.player_ref:
             return 0
         
-        if self.player_ref.rect.centerx > self.rect.centerx:
+        # USE PHYSICS.RECT for accurate positions
+        if self.player_ref.physics.rect.centerx > self.physics.rect.centerx:
             return 1  # Player di kanan
-        elif self.player_ref.rect.centerx < self.rect.centerx:
+        elif self.player_ref.physics.rect.centerx < self.physics.rect.centerx:
             return -1  # Player di kiri
         return 0
     
@@ -130,13 +134,24 @@ class BaseEnemy(Entity):
         CHASE -> IDLE (player terlalu jauh)
         ATTACK -> CHASE (setelah attack selesai)
         """
-        # Jangan update AI jika mati atau sedang hurt
+        # Jangan update AI jika mati
         if not self.alive:
             self.ai_state = self.STATE_DIE
+            self.state = 'die'
             return
         
+        # Jika sedang hurt, tunggu sampai invincibility habis
         if self.is_invincible and self.state == 'hurt':
-            return  # Tetap di state hurt sampai invincibility habis
+            # Check if hurt animation should finish
+            if not self.is_invincible:
+                # Hurt finished, return to previous state
+                self.state = 'idle'
+                self.ai_state = self.STATE_IDLE
+            return  # Don't process other states while hurt
+        
+        # Get distance only if player exists
+        if not self.player_ref:
+            return
         
         distance = self.get_distance_to_player()
         
@@ -145,6 +160,7 @@ class BaseEnemy(Entity):
             # Deteksi player
             if distance < self.detection_range:
                 self.ai_state = self.STATE_CHASE
+                print(f"[AI] {type(self).__name__} detected player! Chasing...")
         
         # --- STATE: CHASE ---
         elif self.ai_state == self.STATE_CHASE:
@@ -154,6 +170,7 @@ class BaseEnemy(Entity):
             # Player terlalu jauh, kehilangan minat
             elif distance > self.lose_interest_range:
                 self.ai_state = self.STATE_IDLE
+                print(f"[AI] {type(self).__name__} lost interest in player")
         
         # --- STATE: ATTACK ---
         elif self.ai_state == self.STATE_ATTACK:
@@ -205,9 +222,9 @@ class BaseEnemy(Entity):
         elif self.rect.x < self.spawn_x - self.patrol_distance:
             self.patrol_direction = 1   # Balik kanan
         
-        # Update facing
+        # Update facing - TRUE = ke kanan, FALSE = ke kiri
+        # patrol_direction: 1 = kanan, -1 = kiri
         self.facing_right = self.patrol_direction > 0
-        self.physics.facing_right = self.facing_right
         
         return self.patrol_direction * self.patrol_speed
     
@@ -218,9 +235,9 @@ class BaseEnemy(Entity):
         """
         direction = self.get_direction_to_player()
         
-        # Update facing
+        # Update facing - TRUE = ke kanan, FALSE = ke kiri
+        # direction: 1 = kanan, -1 = kiri
         self.facing_right = direction > 0
-        self.physics.facing_right = self.facing_right
         
         return direction * self.movement_speed
     
@@ -247,10 +264,15 @@ class BaseEnemy(Entity):
         """
         current_time = pg.time.get_ticks()
         
-        # 1. Cek Invincibility
+        # 1. Cek Invincibility (Hurt state)
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
+                # Exit hurt state
+                if self.state == 'hurt' and self.alive:
+                    self.state = 'idle'
+                    self.ai_state = self.STATE_IDLE
+                    print(f"[COMBAT] {type(self).__name__} recovered from hurt")
         
         # 2. Cek Attack Selesai (berdasarkan animasi)
         if self.is_attacking:
@@ -261,8 +283,7 @@ class BaseEnemy(Entity):
                     self.state = 'idle'
     
     def update(self, platforms):
-        """
-        Main update loop untuk Enemy.
+        """        Main update loop untuk Enemy.
         Dipanggil setiap frame dari GameManager.
         
         Args:
@@ -277,12 +298,15 @@ class BaseEnemy(Entity):
         # 3. Execute AI Behavior & Get Velocity
         x_velocity = self.execute_ai_behavior()
         
-        # 4. Update Physics (jika masih hidup)
+        # 4. Update Physics - ALWAYS APPLY GRAVITY for ground enemies
         if self.alive:
-            self.physics.update(platforms, x_velocity)
-            # JANGAN sync facing dari physics - kita udah set manual di atas
-            # Sync facing KE physics agar konsisten
-            self.physics.facing_right = self.facing_right
+            self.physics.update(platforms, x_velocity, apply_gravity=True)
+        else:
+            # Even when dead, apply gravity to fall
+            self.physics.update(platforms, 0, apply_gravity=True)
+        
+        # 5. CRITICAL: Sync rect with physics.rect
+        self.rect = self.physics.rect
     
     def draw(self, surface, camera_offset):
         """
@@ -292,6 +316,10 @@ class BaseEnemy(Entity):
             surface: Pygame surface untuk digambar
             camera_offset: Vector2 offset kamera
         """
+        # Don't render if dead and animation finished
+        if not self.alive and self.animator.is_animation_finished():
+            return
+        
         # Ambil frame animasi saat ini
         current_frame = self.animator.animate(
             self.state, 
@@ -304,20 +332,61 @@ class BaseEnemy(Entity):
             img_height = current_frame.get_height()
             
             # Hitung offset agar gambar pas di tengah hitbox
-            offset_x = (img_width - self.rect.width) // 2
-            offset_y = img_height - self.rect.height
+            offset_x = (img_width - self.physics.rect.width) // 2
+            offset_y = img_height - self.physics.rect.height
             
-            draw_pos_x = self.rect.x - camera_offset.x - offset_x
-            draw_pos_y = self.rect.y - camera_offset.y - offset_y
+            draw_pos_x = self.physics.rect.x - camera_offset.x - offset_x
+            draw_pos_y = self.physics.rect.y - camera_offset.y - offset_y
             
             surface.blit(current_frame, (draw_pos_x, draw_pos_y))
         else:
             # Fallback: Gambar kotak merah jika tidak ada sprite
+            print(f"[WARNING] No sprite for {type(self).__name__} state: {self.state}")
             color = (255, 0, 0)  # Merah untuk enemy
-            draw_rect = self.rect.copy()
+            draw_rect = self.physics.rect.copy()
             draw_rect.x -= camera_offset.x
             draw_rect.y -= camera_offset.y
             pg.draw.rect(surface, color, draw_rect)
+    
+    def render_sprite(self, camera):
+        """
+        NEW METHOD: Render enemy sprite with Camera object.
+        Compatible with new child class implementations.
+        
+        Args:
+            camera: Camera object with offset attributes
+        """
+        if not self.alive and self.animator.is_animation_finished():
+            return  # Jangan render jika mati dan animasi selesai
+        
+        # Ambil frame animasi (TANPA flip, kita flip manual)
+        sprite = self.animator.animate(
+            state=self.ai_state,
+            speed=self.animator.animation_speed,
+            facing_right=True  # Selalu ambil versi kanan
+        )
+        
+        if sprite:
+            # FLIP SPRITE jika facing left
+            if not self.facing_right:
+                sprite = pg.transform.flip(sprite, True, False)
+            
+            # Hitung posisi render dengan offset camera
+            render_x = self.physics.rect.x - camera.offset.x
+            render_y = self.physics.rect.y - camera.offset.y
+            
+            # Center sprite di hitbox
+            sprite_offset_x = (sprite.get_width() - self.physics.rect.width) // 2
+            sprite_offset_y = (sprite.get_height() - self.physics.rect.height) // 2
+            
+            camera.surface.blit(sprite, (render_x - sprite_offset_x, render_y - sprite_offset_y))
+        else:
+            # Fallback: Gambar kotak merah jika tidak ada sprite
+            color = (255, 0, 0)
+            draw_rect = self.physics.rect.copy()
+            draw_rect.x -= camera.offset.x
+            draw_rect.y -= camera.offset.y
+            pg.draw.rect(camera.surface, color, draw_rect)
     
     # ===========================================
     # SECTION: COMBAT (Override dari Entity)
@@ -326,7 +395,7 @@ class BaseEnemy(Entity):
     def take_damage(self, amount):
         """
         Override take_damage untuk enemy.
-        Tambahkan state hurt.
+        Tambahkan state hurt dan knockback.
         """
         if not self.alive or self.is_invincible:
             return
@@ -335,9 +404,19 @@ class BaseEnemy(Entity):
         self.is_invincible = True
         self.last_hit_time = pg.time.get_ticks()
         self.state = 'hurt'
+        self.ai_state = self.STATE_HURT
         
-        # Reset AI state sementara
-        self.ai_state = self.STATE_IDLE
+        # Reset animation untuk hurt
+        self.animator.reset_animation()
+        
+        # Cancel any ongoing attacks
+        self.is_attacking = False
+        
+        # Knockback effect (optional)
+        if hasattr(self, 'player_ref') and self.player_ref:
+            direction = self.get_direction_to_player()
+            knockback_force = -direction * 3  # Push away from player
+            self.physics.velocity_x = knockback_force
         
         print(f"[COMBAT] {type(self).__name__} took {amount} dmg. HP: {self.current_hp}/{self.max_hp}")
         

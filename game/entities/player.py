@@ -290,6 +290,9 @@ class Player(Entity):
             self.physics.update(platforms, x_vel)
         
         self.get_status(x_vel)
+        
+        # CRITICAL: Sync rect with physics
+        self.rect = self.physics.rect
 
     def draw(self, surface, camera_offset):
         current_frame = self.animator.animate(self.state, 0.1, self.physics.facing_right)
@@ -298,11 +301,12 @@ class Player(Entity):
             img_width = current_frame.get_width()
             img_height = current_frame.get_height()
             
-            offset_x = (img_width - self.rect.width) // 2
-            offset_y = img_height - self.rect.height
+            # Use physics.rect for accurate collision box position
+            offset_x = (img_width - self.physics.rect.width) // 2
+            offset_y = img_height - self.physics.rect.height
             
-            draw_pos_x = self.rect.x - camera_offset.x - offset_x
-            draw_pos_y = self.rect.y - camera_offset.y - offset_y
+            draw_pos_x = self.physics.rect.x - camera_offset.x - offset_x
+            draw_pos_y = self.physics.rect.y - camera_offset.y - offset_y
             
             surface.blit(current_frame, (draw_pos_x, draw_pos_y))
             

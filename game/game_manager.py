@@ -45,7 +45,9 @@ class Game:
         self.camera.set_world_size(level_width, level_height)
         
         self.background = self.level_manager.create_world_background(level_width, level_height)
-        self.void_image = self.level_manager.tile_images.get('#')
+        
+        # Create void background (fallback solid color)
+        self.void_image = None  # Not used with Tiled system
         
         # Spawn player
         self.player = Player(spawn_point[0], spawn_point[1])
@@ -94,48 +96,47 @@ class Game:
         self.player_hit_enemies.clear()
         self.enemy_hit_player.clear()
         
-        leve
-            # Update all enemies
-            for enemy in self.enemies:
-                enemy.update(self.platforms)
-            
-            # Combat checks
-            self.check_player_attack_collision()
-            self.check_enemy_attack_collision()
-            self.remove_dead_enemies()
-            
-            l_index = self.level_manager.current_level_index
+        # Get current level index
+        level_index = self.level_manager.current_level_index
         
         # Enemy spawn configuration per level
         # Format: [(EnemyClass, x, y), ...]
+        # Y positions should be on or near platforms (check TMX spawn point)
         spawn_config = {
             0: [  # Level 1 - Tutorial (Grass Monsters)
-                (Goblin, 800, 500),
-                (Mushroom, 1200, 500),
-                (Skeleton, 1600, 500),
+                # Player spawns at Y=2178, spawn enemies on platforms
+                # Avoid spawning in blocks - check TMX for platform positions
+                (Goblin, 800, 2150),      # Platform safe zone
+                (FlyingEye, 1100, 2000),  # Flying - higher up, safe from blocks
+                (Mushroom, 1400, 2150),   # Platform safe zone
+                (Skeleton, 1700, 2150),   # Platform safe zone
             ],
             1: [  # Level 2 - Grass Area
-                (FlyingEye, 900, 400),
-                (Goblin, 1300, 500),
-                (Goblin, 1500, 500),
-                (Skeleton, 1900, 500),
+                # Player spawns at Y=1508
+                (FlyingEye, 900, 1400),
+                (Goblin, 1300, 1450),
+                (Goblin, 1500, 1450),
+                (Skeleton, 1900, 1450),
             ],
             2: [  # Level 3 - Mixed Challenge
-                (Skullwolf, 1000, 500),
-                (Skeleton, 1400, 500),
-                (FlyingEye, 1800, 400),
-                (Goblin, 2200, 500),
+                # Player spawns at Y=3622.5
+                (Skullwolf, 1000, 3550),
+                (Skeleton, 1400, 3550),
+                (FlyingEye, 1800, 3500),
+                (Goblin, 2200, 3550),
             ],
             3: [  # Level 4 - Ice Zone (Ice Monsters)
-                (Golem, 900, 500),
-                (Guardian, 1400, 500),
-                (Golem, 1900, 500),
+                # Adjust based on level 4 spawn
+                (Golem, 900, 2100),
+                (Guardian, 1400, 2100),
+                (Golem, 1900, 2100),
             ],
             4: [  # Level 5 - Boss Fight (Dungeon Monsters)
-                (Skullwolf, 800, 500),
-                (Skullwolf, 1000, 500),
-                (BringerOfDeath, 1500, 500),
-                (DemonSlime, 2000, 500),
+                # Adjust based on level 5 spawn
+                (Skullwolf, 800, 2100),
+                (Skullwolf, 1000, 2100),
+                (BringerOfDeath, 1500, 2100),
+                (DemonSlime, 2000, 2100),
             ],
         }
         
@@ -163,11 +164,11 @@ class Game:
         attack_height = 70
         
         if self.player.physics.facing_right:
-            attack_x = self.player.rect.right
+            attack_x = self.player.physics.rect.right
         else:
-            attack_x = self.player.rect.left - attack_width
+            attack_x = self.player.physics.rect.left - attack_width
         
-        attack_y = self.player.rect.centery - attack_height // 2
+        attack_y = self.player.physics.rect.centery - attack_height // 2
         attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
         
         # Check collision with all enemies
@@ -212,8 +213,8 @@ class Game:
             attack_y = enemy.physics.rect.centery - attack_height // 2
             attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
             
-            # Check collision with player
-            if attack_rect.colliderect(self.player.rect):
+            # Check collision with player - USE PHYSICS.RECT
+            if attack_rect.colliderect(self.player.physics.rect):
                 self.player.take_damage(enemy.attack_power)
                 self.enemy_hit_player.add(id(enemy))
                 print(f"[HIT] {type(enemy).__name__} hits Player! ({self.player.current_hp}/{self.player.max_hp} HP)")
@@ -225,22 +226,50 @@ class Game:
             e for e in self.enemies 
             if e.alive or (not e.alive and not e.animator.is_animation_finished())
         ]
+
+    def events(self):
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.running = False
+                pg.quit()
+                sys.exit()
+            
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_F4:
+                    is_fullscreen = self.screen.get_flags() & pg.FULLSCREEN
+                    if is_fullscreen:
+                        self.screen = pg.display.set_mode(WINDOW_SIZE)
+                    else:
+                        self.screen = pg.display.set_mode(WINDOW_SIZE, pg.FULLSCREEN)
+                
+                if event.key == pg.K_UP or event.key == pg.K_SPACE:
+                    self.player.jump()
+                
                 # Cheat: Press F to instantly finish level (for development)
                 if event.key == pg.K_f:
                     if not self.transitioning:
                         print("[CHEAT] Skipping level...")
                         self.transitioning = True
                         self.fade_state = 'OUT'
-
+    
     def update(self):
         # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
         if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
             self.player.update(self.platforms)
-            self.camera.follow(self.player.rect)
+            self.camera.follow(self.player.physics.rect)  # USE PHYSICS.RECT
+            
+            # Update all enemies
+            for enemy in self.enemies:
+                enemy.update(self.platforms)
+            
+            # Combat checks
+            self.check_player_attack_collision()
+            self.check_enemy_attack_collision()
+            self.remove_dead_enemies()
         
-        # Cek Finish Point Trigger
+        # Cek Finish Point Trigger - USE PHYSICS.RECT
         if self.finish_rect and not self.transitioning:
-            if self.player.rect.colliderect(self.finish_rect):
+            if self.player.physics.rect.colliderect(self.finish_rect):
                 print("[EVENT] Player reached finish point! Starting transition...")
                 self.transitioning = True
                 self.fade_state = 'OUT' 
@@ -290,18 +319,19 @@ class Game:
             
             # Re-Create Background (World Size)
             self.background = self.level_manager.create_world_background(level_width, level_height)
+            
             # Re-spawn enemies for new level
             self.spawn_enemies()
             
-            self.void_image = self.level_manager.tile_images.get('#')
-            
-            # Reset Player Position & Camera
-            self.player.rect.topleft = spawn_point
+            # Reset Player Position & Camera - USE PHYSICS.RECT
+            self.player.physics.rect.topleft = spawn_point
             self.player.physics.pos.x = spawn_point[0]
             self.player.physics.pos.y = spawn_point[1]
             self.player.physics.velocity.xy = (0, 0)
+            # Sync rect after position update
+            self.player.rect = self.player.physics.rect
             
-            self.camera.follow(self.player.rect)
+            self.camera.follow(self.player.physics.rect)
             
         else:
             print("[INFO] No more levels! Game Completed.")
@@ -309,21 +339,11 @@ class Game:
             self.change_level()
 
     def draw(self):
-        # Draw Void Background (Infinite Wall)
-        if self.void_image:
-            # Hitung offset tile agar seamless
-            tile_w = self.void_image.get_width()
-            tile_h = self.void_image.get_height()
-            
-            start_x = -int(self.camera.offset.x) % tile_w
-            start_y = -int(self.camera.offset.y) % tile_h
-            
-            # Gambar dengan buffer ekstra agar tidak putus saat scrolling
-            for x in range(start_x - tile_w, WINDOW_WIDTH + tile_w, tile_w):
-                for y in range(start_y - tile_h, WINDOW_HEIGHT + tile_h, tile_h):
-                    self.screen.blit(self.void_image, (x, y))
+        # Fill background with solid color (void)
+        if self.level_manager.theme == 'snow':
+            self.screen.fill((20, 30, 45))  # Dark blue for snow
         else:
-            self.screen.fill(BG_COLOR)
+            self.screen.fill((20, 20, 30))  # Dark grey for dungeon
         
         # Draw Level Background (Dungeon Image)
         bg_x = -self.camera.offset.x
@@ -332,13 +352,13 @@ class Game:
         
         # Gambar Tileset
         for img, rect in self.visual_tiles:
-        
-        # Draw all enemies
-        for enemy in self.enemies:
-            enemy.render_sprite(self.camera)
             draw_pos_x = rect.x - self.camera.offset.x
             draw_pos_y = rect.y - self.camera.offset.y
             self.screen.blit(img, (draw_pos_x, draw_pos_y))
+        
+        # Draw all enemies
+        for enemy in self.enemies:
+            enemy.draw(self.screen, self.camera.offset)
 
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
