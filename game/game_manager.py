@@ -69,6 +69,13 @@ class Game:
                 
                 if event.key == pg.K_UP or event.key == pg.K_SPACE:
                     self.player.jump()
+                
+                # Cheat: Press F to instantly finish level (for development)
+                if event.key == pg.K_f:
+                    if not self.transitioning:
+                        print("[CHEAT] Skipping level...")
+                        self.transitioning = True
+                        self.fade_state = 'OUT'
 
     def update(self):
         # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
