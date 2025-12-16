@@ -139,54 +139,62 @@ class LevelManager:
         try:
             tree = ET.parse(filepath)
             root = tree.getroot()
-            layer = root.find("layer")
-            data = layer.find("data").text.strip()
-            
-            width = int(layer.get("width"))
-            height = int(layer.get("height"))
-            
-            gid_list = [int(gid) for gid in data.replace("\n", "").split(",")]
             
             physics_rects = []
             visual_tiles = []
             spawn_point = (100, 100)
             finish_rect = None
             
-            # Use 'snow.png' logic (256px wide => 16 columns)
-            # Assumption: We are using self.tileset_img which should be loaded
+            # Check tileset is loaded
             if not self.tileset_img:
                 print("[ERROR] Tileset image not loaded for TMX!")
                 return physics_rects, visual_tiles, spawn_point, finish_rect
-                
-            cols_in_tileset = self.tileset_img.get_width() // TILE_SIZE
             
-            for index, gid in enumerate(gid_list):
-                if gid == 0: continue # Empty tile
+            # Iterate through ALL layers
+            for layer in root.findall("layer"):
+                layer_name = layer.get("name")
+                data = layer.find("data").text.strip()
                 
-                # Calculate Grid Position
-                x = (index % width) * SCALED_TILE_SIZE
-                y = (index // width) * SCALED_TILE_SIZE
+                width_layer = int(layer.get("width"))
+                # height_layer = int(layer.get("height")) # Unused
                 
-                # Tiled GIDs are 1-based, Python 0-based
-                real_gid = gid - 1
+                gid_list = [int(gid) for gid in data.replace("\n", "").split(",")]
                 
-                # Calculate Source Rect
-                src_x = (real_gid % cols_in_tileset) * TILE_SIZE
-                src_y = (real_gid // cols_in_tileset) * TILE_SIZE
-                
-                # Extract Tile Image
-                tile_src_rect = (src_x, src_y, TILE_SIZE, TILE_SIZE)
-                if src_x + TILE_SIZE <= self.tileset_img.get_width() and \
-                   src_y + TILE_SIZE <= self.tileset_img.get_height():
+                cols_in_tileset = self.tileset_img.get_width() // TILE_SIZE
+                rows_in_tileset = self.tileset_img.get_height() // TILE_SIZE
+                total_tiles = cols_in_tileset * rows_in_tileset
+
+                for index, gid in enumerate(gid_list):
+                    if gid == 0: continue # Empty tile
                     
-                    img = self.tileset_img.subsurface(tile_src_rect)
-                    img = pg.transform.scale(img, (SCALED_TILE_SIZE, SCALED_TILE_SIZE))
+                    # Calculate Grid Position
+                    x = (index % width_layer) * SCALED_TILE_SIZE
+                    y = (index // width_layer) * SCALED_TILE_SIZE
                     
-                    dst_rect = pg.Rect(x, y, SCALED_TILE_SIZE, SCALED_TILE_SIZE)
-                    visual_tiles.append((img, dst_rect))
+                    # Tiled GIDs are 1-based, Python 0-based
+                    # Handle duplicate tilesets by wrapping GID
+                    real_gid = (gid - 1) % total_tiles
                     
-                    # Assume ALL visible tiles are solid for now
-                    physics_rects.append(dst_rect)
+                    # Calculate Source Rect
+                    src_x = (real_gid % cols_in_tileset) * TILE_SIZE
+                    src_y = (real_gid // cols_in_tileset) * TILE_SIZE
+                    
+                    # Extract Tile Image
+                    tile_src_rect = (src_x, src_y, TILE_SIZE, TILE_SIZE)
+                    
+                    # Boundary Check for tileset image (Should pass now with modulo)
+                    if src_x + TILE_SIZE <= self.tileset_img.get_width() and \
+                       src_y + TILE_SIZE <= self.tileset_img.get_height():
+                        
+                        img = self.tileset_img.subsurface(tile_src_rect)
+                        img = pg.transform.scale(img, (SCALED_TILE_SIZE, SCALED_TILE_SIZE))
+                        
+                        dst_rect = pg.Rect(x, y, SCALED_TILE_SIZE, SCALED_TILE_SIZE)
+                        visual_tiles.append((img, dst_rect))
+                        
+                        # Collision Logic: Only "Solid" layer has physics
+                        if layer_name == "Solid":
+                            physics_rects.append(dst_rect)
             
             # Parse Objects (Spawn & Finish)
             object_group = root.find("objectgroup")

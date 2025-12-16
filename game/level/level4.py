@@ -5,4 +5,4 @@ import os
 
 # Menggunakan string untuk menandakan file TMX
 # Manager akan mendeteksi tipe data ini
-level_data = "level4.tmx"
+level_data = "game/level/level4.tmx"
