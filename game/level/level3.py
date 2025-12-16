@@ -1,6 +1,4 @@
-# Level 3: The Canvas (User Design) - Expanded & Padded
-# Size: 110x40 (Original 100 + 10 padding)
-# Template: Hollow Box with Center Markers + 5 Layer Wall Padding
+# Level 3: The hill in the deep
 
 level_data = [
     "#####XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX#####",
