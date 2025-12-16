@@ -3,13 +3,14 @@ import sys
 from game.settings import *
 from game.entities.player import Player
 from game.utils.camera import Camera
+from game.utils.projectile import ProjectileManager
 from game.level.level_manager import LevelManager
 
 # Import All Enemy Classes
 from game.entities.enemies import (
     DemonSlime, BringerOfDeath, Skullwolf,  # Dungeon Monsters
     FlyingEye, Goblin, Mushroom, Skeleton,   # Grass Monsters
-    Golem, Guardian                           # Ice Monsters
+    Golem, Guardian, IceSkeleton              # Ice Monsters
 )
 
 class Game:
@@ -58,6 +59,10 @@ class Game:
         self.enemy_hit_player = set()     # Track which enemies hit player in current attack
         self.spawn_enemies()
         
+        # Projectile System
+        self.projectile_manager = ProjectileManager.get_instance()
+        self.projectile_manager.clear()  # Clear any leftover projectiles
+        
         # Level Transition
         self.finish_rect = finish_rect
         self.transitioning = False
@@ -67,25 +72,6 @@ class Game:
         self.fade_surface.fill((0, 0, 0))
         self.fade_state = 'IN'
 
-    def events(self):
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                self.running = False
-                pg.quit()
-                sys.exit()
-            
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_F4:
-                    is_fullscreen = self.screen.get_flags() & pg.FULLSCREEN
-                    if is_fullscreen:
-                        self.screen = pg.display.set_mode(WINDOW_SIZE)
-                    else:
-                        self.screen = pg.display.set_mode(WINDOW_SIZE, pg.FULLSCREEN)
-                
-                if event.key == pg.K_UP or event.key == pg.K_SPACE:
-                    self.player.jump()
-                
-    
     def spawn_enemies(self):
         """
         Spawn enemies untuk level saat ini.
@@ -103,40 +89,34 @@ class Game:
         # Format: [(EnemyClass, x, y), ...]
         # Y positions should be on or near platforms (check TMX spawn point)
         spawn_config = {
-            0: [  # Level 1 - Tutorial (Grass Monsters)
-                # Player spawns at Y=2178, spawn enemies on platforms
-                # Avoid spawning in blocks - check TMX for platform positions
-                (Goblin, 800, 2150),      # Platform safe zone
-                (FlyingEye, 1100, 2000),  # Flying - higher up, safe from blocks
-                (Mushroom, 1400, 2150),   # Platform safe zone
-                (Skeleton, 1700, 2150),   # Platform safe zone
+            0: [  # Level 1 - Dungeon Monsters
+                (DemonSlime, 800, 2150),
+                (Skullwolf, 1100, 2150),
+                (DemonSlime, 1400, 2150),
             ],
-            1: [  # Level 2 - Grass Area
-                # Player spawns at Y=1508
-                (FlyingEye, 900, 1400),
-                (Goblin, 1300, 1450),
-                (Goblin, 1500, 1450),
-                (Skeleton, 1900, 1450),
+            1: [  # Level 2 - Dungeon Monsters (harder)
+                (Skullwolf, 900, 1400),
+                (BringerOfDeath, 1300, 1450),
+                (DemonSlime, 1600, 1450),
+                (Skullwolf, 1900, 1450),
             ],
-            2: [  # Level 3 - Mixed Challenge
-                # Player spawns at Y=3622.5
-                (Skullwolf, 1000, 3550),
-                (Skeleton, 1400, 3550),
-                (FlyingEye, 1800, 3500),
-                (Goblin, 2200, 3550),
+            2: [  # Level 3 - Dungeon Monsters (boss prep)
+                (BringerOfDeath, 1000, 3550),
+                (Skullwolf, 1400, 3550),
+                (BringerOfDeath, 1800, 3550),
+                (DemonSlime, 2200, 3550),
             ],
             3: [  # Level 4 - Ice Zone (Ice Monsters)
-                # Adjust based on level 4 spawn
                 (Golem, 900, 2100),
-                (Guardian, 1400, 2100),
-                (Golem, 1900, 2100),
+                (IceSkeleton, 1200, 2100),
+                (Guardian, 1500, 2100),
+                (IceSkeleton, 1800, 2100),
             ],
-            4: [  # Level 5 - Boss Fight (Dungeon Monsters)
-                # Adjust based on level 5 spawn
-                (Skullwolf, 800, 2100),
-                (Skullwolf, 1000, 2100),
-                (BringerOfDeath, 1500, 2100),
-                (DemonSlime, 2000, 2100),
+            4: [  # Level 5 - Grass Monsters (final)
+                (Goblin, 800, 2100),
+                (FlyingEye, 1000, 2000),
+                (Skeleton, 1400, 2100),
+                (Mushroom, 1800, 2100),
             ],
         }
         
@@ -266,6 +246,11 @@ class Game:
             self.check_player_attack_collision()
             self.check_enemy_attack_collision()
             self.remove_dead_enemies()
+            
+            # Update projectiles and check for hits
+            projectile_damage = self.projectile_manager.update(self.player)
+            if projectile_damage > 0 and self.player.alive:
+                self.player.take_damage(projectile_damage)
         
         # Cek Finish Point Trigger - USE PHYSICS.RECT
         if self.finish_rect and not self.transitioning:
@@ -323,6 +308,9 @@ class Game:
             # Re-spawn enemies for new level
             self.spawn_enemies()
             
+            # Clear projectiles from previous level
+            self.projectile_manager.clear()
+            
             # Reset Player Position & Camera - USE PHYSICS.RECT
             self.player.physics.rect.topleft = spawn_point
             self.player.physics.pos.x = spawn_point[0]
@@ -359,6 +347,9 @@ class Game:
         # Draw all enemies
         for enemy in self.enemies:
             enemy.draw(self.screen, self.camera.offset)
+        
+        # Draw projectiles
+        self.projectile_manager.draw(self.screen, self.camera.offset)
 
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)

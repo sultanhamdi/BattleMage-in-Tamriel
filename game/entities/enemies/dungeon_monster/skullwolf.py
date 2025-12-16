@@ -66,7 +66,7 @@ class Skullwolf(BaseEnemy):
         self.animator.load_sprites(animation_mapping)
         self.animator.animation_speed = 0.14  # Fast animation
     
-    def update(self, dt):
+    def update(self, platforms):
         """Update dengan hit-and-run behavior."""
         # Cooldown
         if self.attack_cooldown > 0:
@@ -78,7 +78,7 @@ class Skullwolf(BaseEnemy):
             if self.retreat_counter == 0:
                 self.is_retreating = False
         
-        super().update(dt)
+        super().update(platforms)
     
     def _update_ai(self):
         """

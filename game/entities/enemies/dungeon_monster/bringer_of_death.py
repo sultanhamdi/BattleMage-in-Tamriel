@@ -57,19 +57,19 @@ class BringerOfDeath(BaseEnemy):
     def _setup_animations(self):
         """Load animasi Bringer of Death."""
         animation_mapping = {
-            'idle': 'Idle',
-            'walk': 'Walk',
-            'chase': 'Walk',
-            'attack': 'Attack',
-            'cast': 'Cast',
-            'spell': 'Spell',
-            'hurt': 'Hurt',
-            'die': 'Death',
+            'idle': 'idle',
+            'walk': 'walk',
+            'chase': 'walk',
+            'attack': 'attack',
+            'cast': 'cast',
+            'spell': 'spell',
+            'hurt': 'hurt',
+            'die': 'death',
         }
         self.animator.load_sprites(animation_mapping)
         self.animator.animation_speed = 0.10
     
-    def update(self, dt):
+    def update(self, platforms):
         """Update dengan phase mechanics."""
         # Cooldown
         if self.spell_cooldown > 0:
@@ -90,7 +90,7 @@ class BringerOfDeath(BaseEnemy):
             self.movement_speed = self.base_speed * 1.2
             print(f"[BRINGER] PHASE 2 - DARK POWER!")
         
-        super().update(dt)
+        super().update(platforms)
     
     def _update_ai(self):
         """

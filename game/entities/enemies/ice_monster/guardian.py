@@ -66,7 +66,7 @@ class Guardian(BaseEnemy):
         self.animator.load_sprites(animation_mapping)
         self.animator.animation_speed = 0.11
     
-    def update(self, dt):
+    def update(self, platforms):
         """Update dengan combo mechanics."""
         # Cooldown
         if self.combo_cooldown > 0:
@@ -79,7 +79,7 @@ class Guardian(BaseEnemy):
                 # TODO: Apply slow effect to player
                 pass
         
-        super().update(dt)
+        super().update(platforms)
     
     def _update_ai(self):
         """

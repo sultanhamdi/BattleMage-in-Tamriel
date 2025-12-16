@@ -55,17 +55,17 @@ class DemonSlime(BaseEnemy):
     def _setup_animations(self):
         """Load animasi Demon Slime."""
         animation_mapping = {
-            'idle': '01_demon_idle',
-            'walk': '02_demon_walk',
-            'chase': '02_demon_walk',
-            'attack': '03_demon_cleave',
-            'hurt': '04_demon_take_hit',
-            'die': '05_demon_death',
+            'idle': 'idle',
+            'walk': 'walk',
+            'chase': 'walk',
+            'attack': 'attack',   # Folder is 'attack', not 'cleave'
+            'hurt': 'hurt',
+            'die': 'death',
         }
         self.animator.load_sprites(animation_mapping)
         self.animator.animation_speed = 0.09  # Slow, heavy
     
-    def update(self, dt):
+    def update(self, platforms):
         """Update dengan boss mechanics."""
         # Cooldown
         if self.cleave_cooldown > 0:
@@ -79,7 +79,7 @@ class DemonSlime(BaseEnemy):
             self.movement_speed = self.base_speed * 1.4  # Faster when enraged
             print(f"[DEMON SLIME] ENRAGED!")
         
-        super().update(dt)
+        super().update(platforms)
     
     def _update_ai(self):
         """

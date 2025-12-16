@@ -1,34 +1,25 @@
 import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
+from game.utils.projectile import ProjectileManager
 
-# Path aset lokal untuk Mushroom
+# Path aset
 MUSHROOM_ASSET_PATH = 'assets/graphics/enemies/grass_monster/Mushroom/'
+MUSHROOM_PROJECTILE_PATH = 'assets/graphics/enemies/grass_monster/Mushroom/projectile/'
 
 class Mushroom(BaseEnemy):
     """
-    Enemy Mushroom - Tanky Melee Fighter dengan Poison.
+    Enemy Mushroom - Territorial defender with spore attacks.
     
-    KARAKTERISTIK:
-    - HP: 80 (High - Tanky)
-    - Damage: 10 (Low tapi bisa poison)
-    - Speed: 2.0 (Slow)
-    - Behavior: Defensive, patient, sustain fighter
-    
-    ANIMASI:
-    idle(4), run(8), attack(8), attack2(8), range(11), take_hit(4), death(4)
-    
-    SPECIAL ABILITY:
-    - High HP: Can tank many hits
-    - Poison Cloud: Range attack releases spores
-    - Defensive: Doesn't chase far, guards territory
+    BEHAVIOR:
+    - Stays near spawn (territorial)
+    - 2 spore attacks then must melee
+    - Fires spore during 'range' animation
     """
     
-    # AI CONSTANTS
-    SPORE_COOLDOWN = 150     # Frames between spore attacks
-    TERRITORY_RADIUS = 250   # Doesn't chase beyond this
+    TERRITORY_RADIUS = 200
+    SPORE_COOLDOWN = 600  # 10 seconds at 60fps
     
     def __init__(self, x, y):
-        """Initialize Mushroom at position (x, y)."""
         super().__init__(
             x=x, y=y,
             width=42, height=50,
@@ -40,143 +31,144 @@ class Mushroom(BaseEnemy):
         )
         
         # Combat ranges
-        self.detection_range = 280
+        self.detection_range = 250
         self.attack_range = 55
-        self.lose_interest_range = self.TERRITORY_RADIUS  # Stay in territory
+        self.spore_range = 150
         
         # Spore system
         self.spore_cooldown = 0
+        self.spore_count = 0
+        self.max_spores = 2
+        self.force_melee = False
+        
+        # Spore attack state
         self.is_spore_attacking = False
+        self.spore_fired = False
         
         self._setup_animations()
     
     def _setup_animations(self):
-        """Load animasi Mushroom."""
         animation_mapping = {
             'idle': 'idle',
             'walk': 'run',
-            'chase': 'run',
             'attack': 'attack',
-            'range': 'range',  # Spore attack
+            'range': 'range',
             'hurt': 'take_hit',
             'die': 'death',
         }
         self.animator.load_sprites(animation_mapping)
-        self.animator.animation_speed = 0.10  # Slow animation
+        self.animator.animation_speed = 0.12
     
     def update(self, platforms):
-        """Update dengan territorial behavior."""
-        # Cooldown
         if self.spore_cooldown > 0:
             self.spore_cooldown -= 1
         
-        # Update timers
         self.update_timers()
         
         if not self.alive:
             self.physics.update(platforms, 0, apply_gravity=True)
-            self.rect = self.physics.rect  # Sync rect
+            self.rect = self.physics.rect
             return
         
-        # Update AI state
-        self.update_ai_state()
+        x_velocity = self._do_behavior()
         
-        # Execute AI behavior
-        x_velocity = self.execute_ai_behavior()
-        
-        # Update physics with gravity
         self.physics.update(platforms, x_velocity, apply_gravity=True)
-        
-        # CRITICAL: Sync rect with physics.rect
         self.rect = self.physics.rect
     
-    def execute_ai_behavior(self):
-        """
-        IMPROVED AI: Defensive territorial behavior.
-        Returns: x_velocity
-        """
-        if not self.alive or not self.player_ref:
+    def _do_behavior(self):
+        if not self.player_ref:
             self.state = 'idle'
-            return 0
-        
-        # Handle hurt state
-        if self.ai_state == self.STATE_HURT or self.state == 'hurt':
-            return 0  # Don't move when hurt
-        
-        # Handle spore attack
-        if self.is_spore_attacking:
-            self.state = 'range'
-            # Stay still and face player during spore attack
-            direction = self.get_direction_to_player()
-            self.facing_right = direction > 0
-            
-            if self.animator.is_animation_finished():
-                self.release_spores()
-                self.spore_cooldown = self.SPORE_COOLDOWN
-                self.is_spore_attacking = False
-                self.ai_state = self.STATE_IDLE
             return 0
         
         distance = self.get_distance_to_player()
         dist_from_spawn = abs(self.rect.x - self.spawn_x)
         direction = self.get_direction_to_player()
+        self.facing_right = direction > 0
         
-        # STATE MACHINE - Territorial
-        if dist_from_spawn > self.TERRITORY_RADIUS:
-            # Too far from territory - return to spawn
-            self.ai_state = 'return'
-            self.state = 'walk'
-            if self.rect.x > self.spawn_x:
-                self.facing_right = False
-                x_velocity = -self.movement_speed
-            else:
-                self.facing_right = True
-                x_velocity = self.movement_speed
-                
-        elif distance > self.detection_range:
-            # Not detected - idle or patrol in territory
-            self.ai_state = self.STATE_IDLE
-            self.state = 'idle'
-            x_velocity = 0
-            
-        elif distance <= self.attack_range:
-            # Melee attack
-            self.ai_state = self.STATE_ATTACK
-            self.facing_right = direction > 0
-            self.do_attack()
-            x_velocity = 0
-            
-        elif 50 < distance <= 150 and self.spore_cooldown <= 0:
-            # Medium range - spore attack
-            self.ai_state = 'spore'
+        # === HANDLE ONGOING SPORE ATTACK ===
+        if self.is_spore_attacking:
             self.state = 'range'
-            self.is_spore_attacking = True
-            self.facing_right = direction > 0
-            self.animator.reset_animation()
-            x_velocity = 0
             
-        elif distance < self.TERRITORY_RADIUS:
-            # Chase slowly within territory
-            self.ai_state = self.STATE_CHASE
-            self.state = 'chase'
-            self.facing_right = direction > 0
-            x_velocity = direction * self.movement_speed
+            if not self.spore_fired and self.animator.current_frame >= 5:
+                self._fire_spore()
+                self.spore_fired = True
             
-        else:
-            # Too far - let them go
-            self.ai_state = self.STATE_IDLE
-            self.state = 'idle'
-            x_velocity = 0
+            if self.animator.is_animation_finished():
+                self.is_spore_attacking = False
+                self.spore_fired = False
+                self.spore_cooldown = self.SPORE_COOLDOWN
+                self.spore_count += 1
+                
+                if self.spore_count >= self.max_spores:
+                    self.force_melee = True
+                    print(f"[MUSHROOM] Max spores ({self.max_spores})! Must melee.")
+            
+            return 0
         
-        return x_velocity
+        # === STATE MACHINE ===
+        
+        # Outside territory - return
+        if dist_from_spawn > self.TERRITORY_RADIUS:
+            self.state = 'walk'
+            self.force_melee = False
+            self.spore_count = 0
+            return -direction * self.movement_speed
+        
+        if distance > self.detection_range:
+            self.state = 'idle'
+            self.force_melee = False
+            self.spore_count = 0
+            return 0
+        
+        if distance <= self.attack_range:
+            self.state = 'attack'
+            self.do_attack()
+            self.force_melee = False
+            self.spore_count = 0
+            return 0
+        
+        if self.force_melee:
+            self.state = 'walk'
+            return direction * self.movement_speed
+        
+        if (distance < self.spore_range and 
+            self.spore_cooldown <= 0 and 
+            self.spore_count < self.max_spores):
+            self.is_spore_attacking = True
+            self.spore_fired = False
+            self.state = 'range'
+            self.animator.reset_animation()
+            print(f"[MUSHROOM] Starting spore attack...")
+            return 0
+        
+        # Chase within territory
+        if dist_from_spawn < self.TERRITORY_RADIUS:
+            self.state = 'walk'
+            return direction * self.movement_speed
+        
+        self.state = 'idle'
+        return 0
     
-    def release_spores(self):
-        """Release poison spores."""
-        print(f"[MUSHROOM] Releases spores!")
-        # TODO: Implement dengan projectile/effect system
+    def _fire_spore(self):
+        direction = self.get_direction_to_player()
+        
+        spawn_x = self.rect.centerx + (direction * 15)
+        spawn_y = self.rect.top + 15
+        
+        pm = ProjectileManager.get_instance()
+        pm.spawn_projectile(
+            x=spawn_x,
+            y=spawn_y,
+            direction=direction,
+            speed=4,
+            damage=8,
+            sprite_path=MUSHROOM_PROJECTILE_PATH,
+            scale=2.0,
+            max_distance=200
+        )
+        print(f"[MUSHROOM] Spore fired! ({self.spore_count + 1}/{self.max_spores})")
     
     def take_damage(self, amount):
-        """Override take damage - tanky, less affected."""
-        # Reduce damage slightly due to thick skin
-        reduced_damage = amount * 0.85
-        super().take_damage(int(reduced_damage))
+        self.is_spore_attacking = False
+        self.spore_fired = False
+        super().take_damage(int(amount * 0.85))

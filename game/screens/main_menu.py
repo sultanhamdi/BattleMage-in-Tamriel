@@ -69,15 +69,18 @@ class MainMenu:
         self.guide_lines = [
             "=== CONTROLS ===",
             "",
-            "[A] / [D] / [←] / [→]  -  Move",
-            "[W] / [SPACE]  -  Jump",
-            "[J]  -  Attack (Combo x3)",
-            "[ESC]  -  Pause",
+            "[←] / [→]  -  Move",
+            "[↑] / [SPACE]  -  Jump",
+            "[↓]  -  Crouch",
+            "[W]  -  Dash",
+            "[E]  -  Attack (Combo x3)",
+            "[Q]  -  Spin Attack",
+            "[R]  -  Sustain Arcane",
             "[F4]  -  Fullscreen",
             "",
             "=== OBJECTIVE ===",
             "",
-            "Defeat enemies and survive!",
+            "Defeat enemies and reach the finish!",
             "",
             "Press [ESC] or Click to return"
         ]

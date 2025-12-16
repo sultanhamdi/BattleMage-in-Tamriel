@@ -65,12 +65,12 @@ class Golem(BaseEnemy):
             'attack': 'attack',
             'appear': 'idle',  # Use idle for appear
             'hurt': 'hurt',
-            'die': 'die',
+            'die': 'death',
         }
         self.animator.load_sprites(animation_mapping)
         self.animator.animation_speed = 0.08  # Very slow, heavy
     
-    def update(self, dt):
+    def update(self, platforms):
         """Update dengan tank mechanics."""
         # Handle appear animation
         if self.is_appearing:
@@ -84,7 +84,7 @@ class Golem(BaseEnemy):
         if self.slam_cooldown > 0:
             self.slam_cooldown -= 1
         
-        super().update(dt)
+        super().update(platforms)
     
     def _update_ai(self):
         """

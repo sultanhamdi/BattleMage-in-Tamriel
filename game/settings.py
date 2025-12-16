@@ -18,5 +18,6 @@ SCALE = 3
 SCALED_TILE_SIZE = TILE_SIZE * SCALE
 
 BACKGROUNDS = {
-    'dungeon': 'assets/graphics/tilesets/dungeon_bg.png',    
+    'dungeon': 'assets/graphics/tilesets/dungeon_bg.png',
+    'snow': 'assets/graphics/tilesets/snow_bg.png',
 }

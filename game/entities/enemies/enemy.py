@@ -1,5 +1,6 @@
 import pygame as pg
 from game.entities.entities import Entity
+from game.components.physics import PhysicsComponent
 from game.utils.enemy_animation_handler import EnemyAnimationHandler
 
 class BaseEnemy(Entity):
@@ -235,9 +236,9 @@ class BaseEnemy(Entity):
         """
         direction = self.get_direction_to_player()
         
-        # Update facing - TRUE = ke kanan, FALSE = ke kiri
-        # direction: 1 = kanan, -1 = kiri
-        self.facing_right = direction > 0
+        # Update facing - direction: 1 = player di kanan, -1 = player di kiri
+        # facing_right = TRUE berarti sprite menghadap kanan
+        self.facing_right = direction < 0  # INVERTED: hadap berlawanan dari arah gerak?
         
         return direction * self.movement_speed
     
@@ -298,12 +299,12 @@ class BaseEnemy(Entity):
         # 3. Execute AI Behavior & Get Velocity
         x_velocity = self.execute_ai_behavior()
         
-        # 4. Update Physics - ALWAYS APPLY GRAVITY for ground enemies
+        # 4. Update Physics - Apply gravity based on has_gravity flag
         if self.alive:
-            self.physics.update(platforms, x_velocity, apply_gravity=True)
+            self.physics.update(platforms, x_velocity, apply_gravity=self.has_gravity)
         else:
             # Even when dead, apply gravity to fall
-            self.physics.update(platforms, 0, apply_gravity=True)
+            self.physics.update(platforms, 0, apply_gravity=self.has_gravity)
         
         # 5. CRITICAL: Sync rect with physics.rect
         self.rect = self.physics.rect
@@ -360,14 +361,25 @@ class BaseEnemy(Entity):
             return  # Jangan render jika mati dan animasi selesai
         
         # Ambil frame animasi (TANPA flip, kita flip manual)
+        # Use self.state (visual state) not self.ai_state (logic state)
+        animation_state = self.state
+        
         sprite = self.animator.animate(
-            state=self.ai_state,
+            state=animation_state,
             speed=self.animator.animation_speed,
             facing_right=True  # Selalu ambil versi kanan
         )
         
+        # Fallback ke idle jika state tidak ditemukan
+        if sprite is None:
+            sprite = self.animator.animate(
+                state='idle',
+                speed=self.animator.animation_speed,
+                facing_right=True
+            )
+        
         if sprite:
-            # FLIP SPRITE jika facing left
+            # FLIP SPRITE jika facing left (asset default = facing RIGHT)
             if not self.facing_right:
                 sprite = pg.transform.flip(sprite, True, False)
             
