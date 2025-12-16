@@ -5,6 +5,9 @@ from game.entities.player import Player
 from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
 
+# Import Enemy Classes
+from game.entities.enemies import Zombie, Golem, Vampire
+
 class Game:
     def __init__(self):
         pg.init()
@@ -20,7 +23,7 @@ class Game:
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects, Gambar, dan Spawn Point dari Map
-        self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+        self.platforms, self.visual_tiles, spawn_point, finish_rect, self.enemy_spawn_from_map = self.level_manager.create_level()
         
         # Hitung Ukuran Level (World Size)
         max_x = 0
@@ -40,6 +43,12 @@ class Game:
         
         # Spawn player
         self.player = Player(spawn_point[0], spawn_point[1])
+        
+        # Enemy System
+        self.enemies = []
+        self.player_hit_enemies = set()
+        self.enemy_hit_player = set()
+        self.spawn_enemies()
         
         # Level Transition
         self.finish_rect = finish_rect
@@ -67,6 +76,82 @@ class Game:
                 
                 if event.key == pg.K_UP or event.key == pg.K_SPACE:
                     self.player.jump()
+    
+    def spawn_enemies(self):
+        """
+        Spawn enemies berdasarkan konfigurasi level saat ini.
+        Dipanggil saat init dan saat ganti level.
+        
+        Format spawn config:
+        1. Manual koordinat: [('Zombie', 600, 600), ...]
+        2. Dari map dengan count: [('Z', 5), ('V', 2), ('G', 1)] - spawn dari huruf di level_data
+        """
+        # Mapping string nama ke class
+        enemy_classes = {
+            'Zombie': Zombie,
+            'Vampire': Vampire,
+            'Golem': Golem,
+            'Z': Zombie,
+            'V': Vampire,
+            'G': Golem
+        }
+        
+        # Clear existing enemies
+        self.enemies = []
+        self.player_hit_enemies.clear()
+        self.enemy_hit_player.clear()
+        
+        # Get config dari level manager
+        enemy_config = self.level_manager.get_enemy_config()
+        
+        # Jika ada config manual (format lama dengan koordinat)
+        if enemy_config and len(enemy_config) > 0:
+            first_entry = enemy_config[0]
+            
+            # Cek format: (type, x, y) atau (type, count)
+            if len(first_entry) == 3 and isinstance(first_entry[1], (int, float)) and isinstance(first_entry[2], (int, float)):
+                # Format lama: manual koordinat
+                for enemy_type, x, y in enemy_config:
+                    EnemyClass = enemy_classes.get(enemy_type)
+                    if EnemyClass:
+                        enemy = EnemyClass(x, y)
+                        enemy.set_player_reference(self.player)
+                        self.enemies.append(enemy)
+                        print(f"[SPAWN] {enemy_type} at ({x}, {y})")
+            
+            elif len(first_entry) == 2:
+                # Format baru: (huruf/type, count) - spawn dari map
+                spawn_counts = {entry[0]: entry[1] for entry in enemy_config}
+                
+                # Spawn berdasarkan huruf di map
+                for enemy_type, x, y in self.enemy_spawn_from_map:
+                    # Cek berapa banyak yang harus di-spawn di titik ini
+                    char_map = {'Zombie': 'Z', 'Vampire': 'V', 'Golem': 'G'}
+                    spawn_char = char_map.get(enemy_type, enemy_type[0])
+                    
+                    count = spawn_counts.get(spawn_char, 1)
+                    
+                    EnemyClass = enemy_classes.get(enemy_type)
+                    if EnemyClass:
+                        for i in range(count):
+                            # Spawn dengan sedikit offset agar tidak stack sempurna
+                            offset_x = i * 30  # 30 pixel spacing
+                            enemy = EnemyClass(x + offset_x, y)
+                            enemy.set_player_reference(self.player)
+                            self.enemies.append(enemy)
+                            print(f"[SPAWN] {enemy_type} #{i+1} at ({x + offset_x}, {y})")
+        
+        # Jika tidak ada config, spawn dari map saja
+        else:
+            for enemy_type, x, y in self.enemy_spawn_from_map:
+                EnemyClass = enemy_classes.get(enemy_type)
+                if EnemyClass:
+                    enemy = EnemyClass(x, y)
+                    enemy.set_player_reference(self.player)
+                    self.enemies.append(enemy)
+                    print(f"[SPAWN] {enemy_type} at ({x}, {y})")
+        
+        print(f"[INFO] Total enemies spawned: {len(self.enemies)}")
 
     def check_player_attack_collision(self):
         """
@@ -152,6 +237,16 @@ class Game:
         # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
         if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
             self.player.update(self.platforms)
+            
+            # Update enemies
+            for enemy in self.enemies:
+                enemy.update(self.platforms)
+            
+            # Combat checks
+            self.check_player_attack_collision()
+            self.check_enemy_attack_collision()
+            self.remove_dead_enemies()
+            
             self.camera.follow(self.player.rect)
         
         # Cek Finish Point Trigger
@@ -187,7 +282,7 @@ class Game:
             self.level_manager.set_level(next_level_index)
             
             # Re-Generate Level
-            self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+            self.platforms, self.visual_tiles, spawn_point, finish_rect, self.enemy_spawn_from_map = self.level_manager.create_level()
             self.finish_rect = finish_rect
             
             # Re-Calculate Background Size
@@ -214,6 +309,9 @@ class Game:
             self.player.physics.velocity.xy = (0, 0)
             
             self.camera.follow(self.player.rect)
+            
+            # Re-spawn enemies untuk level baru
+            self.spawn_enemies()
             
         else:
             print("[INFO] No more levels! Game Completed.")

@@ -142,8 +142,8 @@ class EnemyAnimationHandler:
             
         image = frames[safe_index]
         
-        # Flip jika menghadap kiri
-        if not facing_right:
+        # Sprite default menghadap kiri, flip jika menghadap kanan
+        if facing_right:
             image = pg.transform.flip(image, True, False)
         
         return image

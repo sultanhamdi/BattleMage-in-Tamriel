@@ -5,25 +5,62 @@ Package untuk semua Enemy classes.
 HIERARKI INHERITANCE:
 Entity (Parent)
 └── BaseEnemy (Base class untuk enemy)
-    ├── Zombie (Melee, Lambat, Patrol)
-    ├── Golem (Tank, HP Tebal, Appear Animation)
-    └── Vampire (Flying, Cepat, Lifesteal)
+    ├── DUNGEON MONSTERS (Boss-tier, high difficulty)
+    │   ├── DemonSlime (Boss, Tank, Area Attack)
+    │   ├── BringerOfDeath (Boss, Caster, Melee+Spell)
+    │   └── Skullwolf (Fast Melee, Pack Hunter)
+    │
+    ├── GRASS MONSTERS (Mid-tier, versatile)
+    │   ├── FlyingEye (Flying, Range Attack)
+    │   ├── Goblin (Melee+Range, Versatile)
+    │   ├── Mushroom (Stationary, Range Spam)
+    │   └── Skeleton (Melee+Range, Shield Defense)
+    │
+    └── ICE MONSTERS (Tank-tier, high defense)
+        ├── Golem (Tank, Slow, High HP)
+        └── Guardian (Elite, Balanced Stats)
 
 USAGE:
-    from game.entities.enemies import Zombie, Golem, Vampire
+    from game.entities.enemies import DemonSlime, Golem, FlyingEye
     
-    # Spawn enemy
-    zombie = Zombie(x=200, y=300)
+    # Spawn enemies
+    demon = DemonSlime(x=200, y=300)
     golem = Golem(x=400, y=300)
-    vampire = Vampire(x=600, y=200)
+    flying_eye = FlyingEye(x=600, y=200)
     
     # Set player reference untuk AI
-    zombie.set_player_reference(player)
+    demon.set_player_reference(player)
 """
 
-from game.entities.enemies.base_enemy import BaseEnemy
-from game.entities.enemies.zombie import Zombie
-from game.entities.enemies.golem import Golem
-from game.entities.enemies.vampire import Vampire
+from game.entities.enemies.enemy import BaseEnemy
 
-__all__ = ['BaseEnemy', 'Zombie', 'Golem', 'Vampire']
+# Dungeon Monsters (Boss Tier)
+from game.entities.enemies.demon_slime import DemonSlime
+from game.entities.enemies.bringer_of_death import BringerOfDeath
+from game.entities.enemies.skullwolf import Skullwolf
+
+# Grass Monsters (Mid Tier)
+from game.entities.enemies.flying_eye import FlyingEye
+from game.entities.enemies.goblin import Goblin
+from game.entities.enemies.mushroom import Mushroom
+from game.entities.enemies.skeleton import Skeleton
+
+# Ice Monsters (Tank Tier)
+from game.entities.enemies.golem import Golem
+from game.entities.enemies.guardian import Guardian
+
+__all__ = [
+    'BaseEnemy',
+    # Dungeon Monsters
+    'DemonSlime',
+    'BringerOfDeath',
+    'Skullwolf',
+    # Grass Monsters
+    'FlyingEye',
+    'Goblin',
+    'Mushroom',
+    'Skeleton',
+    # Ice Monsters
+    'Golem',
+    'Guardian',
+]

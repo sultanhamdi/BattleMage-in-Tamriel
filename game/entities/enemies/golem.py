@@ -1,32 +1,33 @@
 import pygame as pg
-from game.entities.enemies.base_enemy import BaseEnemy
+from game.entities.enemies.enemy import BaseEnemy
 
-# Path aset lokal untuk Golem
-GOLEM_ASSET_PATH = 'assets/graphics/enemies/golem/'
+# Path aset lokal untuk Golem (ICE MONSTER)
+GOLEM_ASSET_PATH = 'assets/graphics/enemies/ice_monster/golem/'
 
 class Golem(BaseEnemy):
     """
-    Enemy Golem - Tipe: Tank, Lambat, HP Tebal, Serangan Berat.
+    Enemy Golem - Tipe: Ice Tank, Lambat, HP Tebal, Serangan Berat.
     
     INHERITANCE CHAIN:
     pg.sprite.Sprite -> Entity -> BaseEnemy -> Golem
     
-    KARAKTERISTIK GOLEM (dari GDD):
-    - Sangat lambat tapi HP sangat tebal
-    - Serangan area berat (damage tinggi)
-    - Punya animasi "appear" saat pertama kali detect player
-    - AI: Idle sampai player datang -> Appear -> Chase -> Attack
+    KARAKTERISTIK GOLEM:
+    - Ice monster tank dengan HP sangat tebal
+    - Serangan berat dengan damage tinggi
+    - Sangat lambat tapi intimidating
+    - AI: Patrol -> Chase -> Attack
     
-    ANIMASI YANG TERSEDIA:
-    - idle/walk (folder: idle-walk/) - Share folder
-    - attack (folder: attack/)
-    - die (folder: die/)
-    - appear (folder: appear/)
+    ANIMASI YANG TERSEDIA (ICE MONSTER):
+    - idle: 8 frames
+    - walk: 10 frames
+    - attack: 11 frames
+    - hurt: 4 frames
+    - die: 13 frames
     
     SPECIAL BEHAVIOR:
-    - Golem mulai dalam state IDLE (diam seperti batu)
-    - Saat player mendekat, Golem "bangun" (APPEAR animation)
-    - Setelah appear selesai, baru chase player
+    - High HP and damage (tank role)
+    - Slow movement
+    - Damage reduction (armor)
     """
     
     def __init__(self, x, y):
@@ -37,16 +38,16 @@ class Golem(BaseEnemy):
             x, y: Posisi spawn Golem
         """
         # 1. TENTUKAN STATS KHUSUS GOLEM
-        stats_hp = 150      # HP sangat tebal (3x Zombie)
-        stats_attack = 25   # Damage tinggi (2.5x Zombie)
+        stats_hp = 150      # HP sangat tebal
+        stats_attack = 25   # Damage tinggi
         stats_speed = 1.5   # Sangat lambat
         
         # Ukuran hitbox (Golem lebih besar)
         hitbox_width = 60
         hitbox_height = 80
         
-        # Scale untuk sprite (Golem = Tank, lebih besar dari enemy lain)
-        sprite_scale = 0.35
+        # Scale untuk sprite
+        sprite_scale = 2.0
         
         # 2. PANGGIL CONSTRUCTOR PARENT (BaseEnemy)
         super().__init__(
@@ -59,186 +60,83 @@ class Golem(BaseEnemy):
             scale=sprite_scale
         )
         
-        # 3. SETUP ANIMASI
-        # Mapping: state_name -> folder_name
-        # Note: idle dan walk share folder 'idle-walk'
-        self.animation_mapping = {
-            'idle': 'idle-walk',
-            'walk': 'idle-walk',
+        # 3. OVERRIDE DETECTION RANGES
+        self.detection_range = 250
+        self.attack_range = 70
+        self.lose_interest_range = 350
+        
+        # 4. DAMAGE REDUCTION (Armor)
+        self.damage_reduction = 0.8  # 20% damage reduction
+        
+        # 5. SETUP ANIMASI
+        self._setup_animations()
+    
+    def _setup_animations(self):
+        """
+        Load semua sprite animasi untuk Golem (Ice Monster).
+        
+        Mapping folder:
+        - idle -> idle
+        - walk -> walk
+        - chase -> walk
+        - attack -> attack
+        - hurt -> hurt
+        - die -> die
+        """
+        animation_mapping = {
+            'idle': 'idle',
+            'walk': 'walk',
+            'chase': 'walk',
             'attack': 'attack',
+            'hurt': 'hurt',
             'die': 'die',
-            'appear': 'appear',
-            'hurt': 'idle-walk'  # Pakai idle untuk hurt
         }
-        self.animator.load_sprites(self.animation_mapping)
         
-        # 4. AI SETTINGS KHUSUS GOLEM
-        self.detection_range = 200      # Golem detect dari jarak dekat (dia besar jadi player gampang liat)
-        self.attack_range = 70          # Range lebih besar (tangan golem panjang)
-        self.lose_interest_range = 300  # Golem tidak mengejar jauh (malas)
-        self.patrol_distance = 0        # Golem TIDAK patrol (diam di tempat)
+        self.animator.load_sprites(animation_mapping)
         
-        # 5. SPECIAL STATE: HAS APPEARED
-        # Golem perlu "bangun" dulu sebelum bisa bergerak
-        self.has_appeared = False
-        
-        # 6. SET DEFAULT STATE
-        # Golem mulai dalam state IDLE (tidur)
-        self.ai_state = self.STATE_IDLE
-        self.state = 'idle'
+        # Set animation speed
+        self.animator.animation_speed = 0.12  # Slow and heavy
+        self.attack_animation_speed = 0.10
     
-    # ===========================================
-    # SECTION: OVERRIDE AI STATE MACHINE
-    # ===========================================
-    
-    def update_ai_state(self):
+    def update(self, dt):
         """
-        Override AI state untuk Golem.
-        Golem punya state tambahan: APPEAR (bangun dari tidur).
-        
-        STATE TRANSITIONS:
-        IDLE -> APPEAR (player terdeteksi, golem belum bangun)
-        APPEAR -> CHASE (animasi appear selesai)
-        CHASE -> ATTACK (player dalam jangkauan)
-        ATTACK -> CHASE (setelah attack selesai)
+        Override update untuk Golem behavior.
         """
-        if not self.alive:
-            self.ai_state = self.STATE_DIE
-            return
-        
-        # Skip jika sedang hurt
-        if self.is_invincible and self.state == 'hurt':
-            return
-        
-        distance = self.get_distance_to_player()
-        
-        # --- STATE: IDLE (Golem Tidur) ---
-        if self.ai_state == self.STATE_IDLE:
-            if distance < self.detection_range:
-                # Player mendekat!
-                if not self.has_appeared:
-                    # Golem belum bangun, mainkan animasi appear
-                    self.ai_state = self.STATE_APPEAR
-                    self.state = 'appear'
-                    self.animator.reset_animation()
-                    print(f"[AI] Golem detected player! Starting APPEAR animation...")
-                else:
-                    # Sudah pernah bangun, langsung chase
-                    self.ai_state = self.STATE_CHASE
-        
-        # --- STATE: APPEAR (Golem Bangun) ---
-        elif self.ai_state == self.STATE_APPEAR:
-            # Tunggu animasi appear selesai
-            if self.animator.is_animation_finished():
-                self.has_appeared = True
-                self.ai_state = self.STATE_CHASE
-                print(f"[AI] Golem APPEAR complete! Now chasing...")
-        
-        # --- STATE: CHASE ---
-        elif self.ai_state == self.STATE_CHASE:
-            if distance < self.attack_range:
-                self.ai_state = self.STATE_ATTACK
-            elif distance > self.lose_interest_range:
-                # Golem kembali idle tapi tetap "bangun" (tidak perlu appear lagi)
-                self.ai_state = self.STATE_IDLE
-        
-        # --- STATE: ATTACK ---
-        elif self.ai_state == self.STATE_ATTACK:
-            if not self.is_attacking:
-                if distance < self.attack_range:
-                    # Serang lagi
-                    self.ai_state = self.STATE_ATTACK
-                else:
-                    self.ai_state = self.STATE_CHASE
-    
-    def execute_ai_behavior(self):
-        """
-        Override execute behavior untuk Golem.
-        Tambahkan handling untuk state APPEAR.
-        """
-        x_velocity = 0
-        
-        if self.ai_state == self.STATE_IDLE:
-            x_velocity = 0
-            self.state = 'idle'
-        
-        elif self.ai_state == self.STATE_APPEAR:
-            # Golem diam saat animasi appear
-            x_velocity = 0
-            self.state = 'appear'
-        
-        elif self.ai_state == self.STATE_CHASE:
-            x_velocity = self.do_chase()
-            self.state = 'walk'
-        
-        elif self.ai_state == self.STATE_ATTACK:
-            x_velocity = 0
-            self.do_attack()
-        
-        elif self.ai_state == self.STATE_DIE:
-            x_velocity = 0
-            self.state = 'die'
-        
-        return x_velocity
-    
-    def do_chase(self):
-        """
-        Override chase untuk Golem.
-        Golem chase sangat lambat tapi mengintimidasi.
-        """
-        direction = self.get_direction_to_player()
-        
-        # Update facing direction
-        self.facing_right = direction > 0
-        self.physics.facing_right = self.facing_right
-        
-        # Golem sangat lambat
-        return direction * self.movement_speed
-    
-    def do_attack(self):
-        """
-        Override attack untuk Golem.
-        Serangan berat dengan damage tinggi.
-        """
-        if not self.is_attacking and self.alive:
-            self.is_attacking = True
-            self.last_attack_time = pg.time.get_ticks()
-            self.state = 'attack'
-            self.animator.reset_animation()
-            
-            # Deal damage ke player jika dalam range
-            if self.player_ref and self.player_ref.alive:
-                distance = self.get_distance_to_player()
-                if distance < self.attack_range + 30:  # Range lebih besar untuk golem
-                    self.player_ref.take_damage(self.attack_power)
-                    print(f"[COMBAT] Golem SMASH! Deals {self.attack_power} damage to Player!")
-    
-    # ===========================================
-    # SECTION: OVERRIDE DAMAGE (Golem lebih tahan)
-    # ===========================================
+        super().update(dt)
     
     def take_damage(self, amount):
         """
-        Override take_damage untuk Golem.
-        Golem punya damage reduction (armor).
+        Override take_damage untuk damage reduction.
         """
-        if not self.alive or self.is_invincible:
-            return
+        # Apply damage reduction
+        reduced_damage = int(amount * self.damage_reduction)
+        super().take_damage(reduced_damage)
+    
+    def render_sprite(self, camera):
+        """
+        Override render untuk animasi.
+        """
+        # Tentukan speed animasi berdasarkan state
+        anim_speed = self.animator.animation_speed
         
-        # Golem punya 20% damage reduction
-        reduced_damage = int(amount * 0.8)
+        if self.ai_state == self.STATE_ATTACK:
+            anim_speed = self.attack_animation_speed
         
-        self.current_hp -= reduced_damage
-        self.is_invincible = True
-        self.last_hit_time = pg.time.get_ticks()
+        # Dapatkan frame animasi
+        sprite = self.animator.animate(
+            state=self.ai_state,
+            speed=anim_speed,
+            facing_right=self.facing_right
+        )
         
-        # Golem tidak flinch (tidak masuk state hurt kecuali HP rendah)
-        if self.current_hp < self.max_hp * 0.3:  # HP di bawah 30%
-            self.state = 'hurt'
-            self.ai_state = self.STATE_IDLE
-        
-        print(f"[COMBAT] Golem took {reduced_damage} dmg (reduced from {amount}). HP: {self.current_hp}/{self.max_hp}")
-        
-        if self.current_hp <= 0:
-            self.die()
+        if sprite:
+            # Hitung posisi render dengan offset camera
+            render_x = self.physics.rect.x - camera.offset_x
+            render_y = self.physics.rect.y - camera.offset_y
+            
+            # Center sprite di hitbox
+            sprite_offset_x = (sprite.get_width() - self.physics.rect.width) // 2
+            sprite_offset_y = (sprite.get_height() - self.physics.rect.height) // 2
+            
+            camera.surface.blit(sprite, (render_x - sprite_offset_x, render_y - sprite_offset_y))
 

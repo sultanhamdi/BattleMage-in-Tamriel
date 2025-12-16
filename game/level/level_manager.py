@@ -26,16 +26,26 @@ class LevelManager:
         self.load_assets()
         
         # Level Management
-        self.levels = [level1.level_data, level2.level_data, level3.level_data]
+        self.levels = [level1, level2, level3]  # Store module references
         self.current_level_index = 0
-        self.level_map = self.levels[self.current_level_index]
+        self.level_map = self.levels[self.current_level_index].level_data
 
     def set_level(self, index):
         if 0 <= index < len(self.levels):
             self.current_level_index = index
-            self.level_map = self.levels[index]
+            self.level_map = self.levels[index].level_data
             return True
         return False
+    
+    def get_enemy_config(self):
+        """
+        Get enemy spawn config untuk level saat ini.
+        Format bisa:
+        1. List tuple: [('Zombie', x, y), ...] (koordinat manual)
+        2. List tuple dengan count: [('Z', 5), ('V', 2), ...] (spawn dari level_data)
+        """
+        current_level = self.levels[self.current_level_index]
+        return getattr(current_level, 'enemy_spawn_config', [])
 
     def load_assets(self):
         path = THEMES.get(self.theme)
@@ -116,6 +126,7 @@ class LevelManager:
         visual_tiles = []
         spawn_point = (100, 100) # Default spawn
         finish_rect = None       # Area transisi level
+        enemy_spawn_points = []  # List of (enemy_type, x, y)
 
         for row_index, row in enumerate(self.level_map):
             for col_index, char in enumerate(row):
@@ -129,6 +140,11 @@ class LevelManager:
                     # Area Finish / Transition
                     finish_rect = pg.Rect(x, y, SCALED_TILE_SIZE, SCALED_TILE_SIZE)
                 
+                # Enemy Spawn Points
+                elif char in ['Z', 'V', 'G']:
+                    enemy_type = {'Z': 'Zombie', 'V': 'Vampire', 'G': 'Golem'}[char]
+                    enemy_spawn_points.append((enemy_type, x, y))
+                
                 elif char in self.tile_images:
                     # Visual
                     img = self.tile_images[char]
@@ -139,4 +155,4 @@ class LevelManager:
                     if char in ['X', '#', '=', '_', '|']:
                         physics_rects.append(rect)
         
-        return physics_rects, visual_tiles, spawn_point, finish_rect
+        return physics_rects, visual_tiles, spawn_point, finish_rect, enemy_spawn_points

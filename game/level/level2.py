@@ -36,3 +36,38 @@ level_data = [
     "################X                            |                            X################",
     "################XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX################",
 ]
+
+# ===========================================
+# ENEMY SPAWN CONFIGURATION - LEVEL 2
+# ===========================================
+enemy_spawn_config = [
+    # Left section - Zombie patrol
+    ('Zombie', 400, 500),
+    ('Zombie', 650, 500),
+    
+    # Middle platforms - 2 Vampires (aerial threat)
+    ('Vampire', 800, 300),
+    ('Vampire', 1100, 350),
+    
+    # Right section - Golem guarding finish
+    ('Golem', 1400, 550),
+    
+    # Bottom - Another zombie
+    ('Zombie', 900, 700),
+]
+# ===========================================
+enemy_spawn_config = [
+    # Left section - Zombie patrol
+    ('Zombie', 400, 500),
+    ('Zombie', 650, 500),
+    
+    # Middle platforms - 2 Vampires (aerial threat)
+    ('Vampire', 800, 300),
+    ('Vampire', 1100, 350),
+    
+    # Right section - Golem guarding finish
+    ('Golem', 1400, 550),
+    
+    # Bottom - Another zombie
+    ('Zombie', 900, 700),
+]
