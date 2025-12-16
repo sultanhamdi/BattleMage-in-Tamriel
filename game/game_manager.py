@@ -5,8 +5,12 @@ from game.entities.player import Player
 from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
 
-# Import Enemy Classes
-from game.entities.enemies import Zombie, Golem, Vampire
+# Import All Enemy Classes
+from game.entities.enemies import (
+    DemonSlime, BringerOfDeath, Skullwolf,  # Dungeon Monsters
+    FlyingEye, Goblin, Mushroom, Skeleton,   # Grass Monsters
+    Golem, Guardian                           # Ice Monsters
+)
 
 class Game:
     def __init__(self):
@@ -23,7 +27,7 @@ class Game:
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects, Gambar, dan Spawn Point dari Map
-        self.platforms, self.visual_tiles, spawn_point, finish_rect, self.enemy_spawn_from_map = self.level_manager.create_level()
+        self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
         
         # Hitung Ukuran Level (World Size)
         max_x = 0
@@ -38,6 +42,8 @@ class Game:
         # Tambahkan sedikit padding
         level_width = max(WINDOW_WIDTH, max_x)
         level_height = max(WINDOW_HEIGHT, max_y)
+        self.camera.set_world_size(level_width, level_height)
+        
         self.background = self.level_manager.create_world_background(level_width, level_height)
         self.void_image = self.level_manager.tile_images.get('#')
         
@@ -46,8 +52,8 @@ class Game:
         
         # Enemy System
         self.enemies = []
-        self.player_hit_enemies = set()
-        self.enemy_hit_player = set()
+        self.player_hit_enemies = set()  # Track which enemies were hit in current attack
+        self.enemy_hit_player = set()     # Track which enemies hit player in current attack
         self.spawn_enemies()
         
         # Level Transition
@@ -76,169 +82,20 @@ class Game:
                 
                 if event.key == pg.K_UP or event.key == pg.K_SPACE:
                     self.player.jump()
+                
     
     def spawn_enemies(self):
         """
-        Spawn enemies berdasarkan konfigurasi level saat ini.
-        Dipanggil saat init dan saat ganti level.
-        
-        Format spawn config:
-        1. Manual koordinat: [('Zombie', 600, 600), ...]
-        2. Dari map dengan count: [('Z', 5), ('V', 2), ('G', 1)] - spawn dari huruf di level_data
+        Spawn enemies untuk level saat ini.
+        Konfigurasi spawn per level.
         """
-        # Mapping string nama ke class
-        enemy_classes = {
-            'Zombie': Zombie,
-            'Vampire': Vampire,
-            'Golem': Golem,
-            'Z': Zombie,
-            'V': Vampire,
-            'G': Golem
-        }
-        
         # Clear existing enemies
         self.enemies = []
         self.player_hit_enemies.clear()
         self.enemy_hit_player.clear()
         
-        # Get config dari level manager
-        enemy_config = self.level_manager.get_enemy_config()
-        
-        # Jika ada config manual (format lama dengan koordinat)
-        if enemy_config and len(enemy_config) > 0:
-            first_entry = enemy_config[0]
-            
-            # Cek format: (type, x, y) atau (type, count)
-            if len(first_entry) == 3 and isinstance(first_entry[1], (int, float)) and isinstance(first_entry[2], (int, float)):
-                # Format lama: manual koordinat
-                for enemy_type, x, y in enemy_config:
-                    EnemyClass = enemy_classes.get(enemy_type)
-                    if EnemyClass:
-                        enemy = EnemyClass(x, y)
-                        enemy.set_player_reference(self.player)
-                        self.enemies.append(enemy)
-                        print(f"[SPAWN] {enemy_type} at ({x}, {y})")
-            
-            elif len(first_entry) == 2:
-                # Format baru: (huruf/type, count) - spawn dari map
-                spawn_counts = {entry[0]: entry[1] for entry in enemy_config}
-                
-                # Spawn berdasarkan huruf di map
-                for enemy_type, x, y in self.enemy_spawn_from_map:
-                    # Cek berapa banyak yang harus di-spawn di titik ini
-                    char_map = {'Zombie': 'Z', 'Vampire': 'V', 'Golem': 'G'}
-                    spawn_char = char_map.get(enemy_type, enemy_type[0])
-                    
-                    count = spawn_counts.get(spawn_char, 1)
-                    
-                    EnemyClass = enemy_classes.get(enemy_type)
-                    if EnemyClass:
-                        for i in range(count):
-                            # Spawn dengan sedikit offset agar tidak stack sempurna
-                            offset_x = i * 30  # 30 pixel spacing
-                            enemy = EnemyClass(x + offset_x, y)
-                            enemy.set_player_reference(self.player)
-                            self.enemies.append(enemy)
-                            print(f"[SPAWN] {enemy_type} #{i+1} at ({x + offset_x}, {y})")
-        
-        # Jika tidak ada config, spawn dari map saja
-        else:
-            for enemy_type, x, y in self.enemy_spawn_from_map:
-                EnemyClass = enemy_classes.get(enemy_type)
-                if EnemyClass:
-                    enemy = EnemyClass(x, y)
-                    enemy.set_player_reference(self.player)
-                    self.enemies.append(enemy)
-                    print(f"[SPAWN] {enemy_type} at ({x}, {y})")
-        
-        print(f"[INFO] Total enemies spawned: {len(self.enemies)}")
-
-    def check_player_attack_collision(self):
-        """
-        Cek apakah serangan player mengenai enemy.
-        Dipanggil setiap frame saat player sedang menyerang.
-        """
-        if not self.player.is_attacking or not self.player.alive:
-            # Reset tracking saat tidak menyerang
-            self.player_hit_enemies.clear()
-            return
-        
-        # Buat attack hitbox berdasarkan posisi dan arah hadap player
-        attack_width = 50
-        attack_height = 60
-        
-        # Tentukan posisi hitbox berdasarkan arah hadap
-        if self.player.physics.facing_right:
-            attack_x = self.player.rect.right
-        else:
-            attack_x = self.player.rect.left - attack_width
-        
-        attack_y = self.player.rect.centery - attack_height // 2
-        
-        # Buat rectangle untuk attack hitbox
-        attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
-        
-        # Cek collision dengan semua enemy
-        for enemy in self.enemies:
-            if not enemy.alive:
-                continue
-            
-            # Skip jika enemy sudah pernah kena di serangan ini
-            if id(enemy) in self.player_hit_enemies:
-                continue
-            
-            # Cek apakah attack hitbox mengenai enemy
-            if attack_rect.colliderect(enemy.rect):
-                enemy.take_damage(self.player.attack_power)
-                self.player_hit_enemies.add(id(enemy))  # Tandai sudah kena
-                print(f"[HIT] Player hits {type(enemy).__name__}!")
-
-    def check_enemy_attack_collision(self):
-        """
-        Cek apakah serangan enemy mengenai player.
-        """
-        if not self.player.alive:
-            return
-        
-        for enemy in self.enemies:
-            if not enemy.alive or not enemy.is_attacking:
-                # Reset tracking untuk enemy ini saat tidak menyerang
-                self.enemy_hit_player.discard(id(enemy))
-                continue
-            
-            # Skip jika enemy sudah hit player di serangan ini
-            if id(enemy) in self.enemy_hit_player:
-                continue
-            
-            # Buat attack hitbox untuk enemy
-            attack_width = 40
-            attack_height = 50
-            
-            if enemy.facing_right:
-                attack_x = enemy.rect.right
-            else:
-                attack_x = enemy.rect.left - attack_width
-            
-            attack_y = enemy.rect.centery - attack_height // 2
-            attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
-            
-            # Cek collision dengan player
-            if attack_rect.colliderect(self.player.rect):
-                self.player.take_damage(enemy.attack_power)
-                self.enemy_hit_player.add(id(enemy))  # Tandai sudah hit
-                print(f"[HIT] {type(enemy).__name__} hits Player!")
-
-    def remove_dead_enemies(self):
-        """Hapus enemy yang sudah mati (setelah animasi death selesai)"""
-        # Filter: Keep enemy yang masih alive ATAU masih ada animasi death
-        self.enemies = [e for e in self.enemies if e.alive or (not e.alive and e.animator.frame_index < len(e.animator.animations.get('die', [])) - 1)]
-
-    def update(self):
-        # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
-        if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
-            self.player.update(self.platforms)
-            
-            # Update enemies
+        leve
+            # Update all enemies
             for enemy in self.enemies:
                 enemy.update(self.platforms)
             
@@ -247,6 +104,138 @@ class Game:
             self.check_enemy_attack_collision()
             self.remove_dead_enemies()
             
+            l_index = self.level_manager.current_level_index
+        
+        # Enemy spawn configuration per level
+        # Format: [(EnemyClass, x, y), ...]
+        spawn_config = {
+            0: [  # Level 1 - Tutorial (Grass Monsters)
+                (Goblin, 800, 500),
+                (Mushroom, 1200, 500),
+                (Skeleton, 1600, 500),
+            ],
+            1: [  # Level 2 - Grass Area
+                (FlyingEye, 900, 400),
+                (Goblin, 1300, 500),
+                (Goblin, 1500, 500),
+                (Skeleton, 1900, 500),
+            ],
+            2: [  # Level 3 - Mixed Challenge
+                (Skullwolf, 1000, 500),
+                (Skeleton, 1400, 500),
+                (FlyingEye, 1800, 400),
+                (Goblin, 2200, 500),
+            ],
+            3: [  # Level 4 - Ice Zone (Ice Monsters)
+                (Golem, 900, 500),
+                (Guardian, 1400, 500),
+                (Golem, 1900, 500),
+            ],
+            4: [  # Level 5 - Boss Fight (Dungeon Monsters)
+                (Skullwolf, 800, 500),
+                (Skullwolf, 1000, 500),
+                (BringerOfDeath, 1500, 500),
+                (DemonSlime, 2000, 500),
+            ],
+        }
+        
+        # Get enemies for current level
+        enemies_to_spawn = spawn_config.get(level_index, [])
+        
+        # Spawn enemies
+        for EnemyClass, x, y in enemies_to_spawn:
+            enemy = EnemyClass(x, y)
+            enemy.set_player_reference(self.player)
+            self.enemies.append(enemy)
+            print(f"[SPAWN] {EnemyClass.__name__} at ({x}, {y})")
+        
+        print(f"[INFO] Total enemies spawned: {len(self.enemies)}")
+    
+    def check_player_attack_collision(self):
+        """Check if player's attack hits any enemies"""
+        if not self.player.is_attacking or not self.player.alive:
+            # Reset tracking when not attacking
+            self.player_hit_enemies.clear()
+            return
+        
+        # Create attack hitbox based on player position and facing direction
+        attack_width = 60
+        attack_height = 70
+        
+        if self.player.physics.facing_right:
+            attack_x = self.player.rect.right
+        else:
+            attack_x = self.player.rect.left - attack_width
+        
+        attack_y = self.player.rect.centery - attack_height // 2
+        attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
+        
+        # Check collision with all enemies
+        for enemy in self.enemies:
+            if not enemy.alive:
+                continue
+            
+            # Skip if already hit in this attack
+            if id(enemy) in self.player_hit_enemies:
+                continue
+            
+            # Check if attack hitbox overlaps enemy
+            if attack_rect.colliderect(enemy.physics.rect):
+                enemy.take_damage(self.player.attack_power)
+                self.player_hit_enemies.add(id(enemy))
+                print(f"[HIT] Player hits {type(enemy).__name__}! ({enemy.current_hp}/{enemy.max_hp} HP)")
+    
+    def check_enemy_attack_collision(self):
+        """Check if any enemy's attack hits player"""
+        if not self.player.alive:
+            return
+        
+        for enemy in self.enemies:
+            if not enemy.alive or not enemy.is_attacking:
+                # Reset tracking when not attacking
+                self.enemy_hit_player.discard(id(enemy))
+                continue
+            
+            # Skip if already hit player in this attack
+            if id(enemy) in self.enemy_hit_player:
+                continue
+            
+            # Create attack hitbox for enemy
+            attack_width = 50
+            attack_height = 60
+            
+            if enemy.facing_right:
+                attack_x = enemy.physics.rect.right
+            else:
+                attack_x = enemy.physics.rect.left - attack_width
+            
+            attack_y = enemy.physics.rect.centery - attack_height // 2
+            attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
+            
+            # Check collision with player
+            if attack_rect.colliderect(self.player.rect):
+                self.player.take_damage(enemy.attack_power)
+                self.enemy_hit_player.add(id(enemy))
+                print(f"[HIT] {type(enemy).__name__} hits Player! ({self.player.current_hp}/{self.player.max_hp} HP)")
+    
+    def remove_dead_enemies(self):
+        """Remove enemies that finished their death animation"""
+        # Keep enemies that are alive OR still playing death animation
+        self.enemies = [
+            e for e in self.enemies 
+            if e.alive or (not e.alive and not e.animator.is_animation_finished())
+        ]
+                # Cheat: Press F to instantly finish level (for development)
+                if event.key == pg.K_f:
+                    if not self.transitioning:
+                        print("[CHEAT] Skipping level...")
+                        self.transitioning = True
+                        self.fade_state = 'OUT'
+
+    def update(self):
+        # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
+        if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
+            self.player.update(self.platforms)
             self.camera.follow(self.player.rect)
         
         # Cek Finish Point Trigger
@@ -282,7 +271,7 @@ class Game:
             self.level_manager.set_level(next_level_index)
             
             # Re-Generate Level
-            self.platforms, self.visual_tiles, spawn_point, finish_rect, self.enemy_spawn_from_map = self.level_manager.create_level()
+            self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
             self.finish_rect = finish_rect
             
             # Re-Calculate Background Size
@@ -297,9 +286,13 @@ class Game:
             
             level_width = max(WINDOW_WIDTH, max_x)
             level_height = max(WINDOW_HEIGHT, max_y)
+            self.camera.set_world_size(level_width, level_height)
             
             # Re-Create Background (World Size)
             self.background = self.level_manager.create_world_background(level_width, level_height)
+            # Re-spawn enemies for new level
+            self.spawn_enemies()
+            
             self.void_image = self.level_manager.tile_images.get('#')
             
             # Reset Player Position & Camera
@@ -309,9 +302,6 @@ class Game:
             self.player.physics.velocity.xy = (0, 0)
             
             self.camera.follow(self.player.rect)
-            
-            # Re-spawn enemies untuk level baru
-            self.spawn_enemies()
             
         else:
             print("[INFO] No more levels! Game Completed.")
@@ -342,13 +332,13 @@ class Game:
         
         # Gambar Tileset
         for img, rect in self.visual_tiles:
+        
+        # Draw all enemies
+        for enemy in self.enemies:
+            enemy.render_sprite(self.camera)
             draw_pos_x = rect.x - self.camera.offset.x
             draw_pos_y = rect.y - self.camera.offset.y
             self.screen.blit(img, (draw_pos_x, draw_pos_y))
-
-        # [BARU] Gambar semua Enemy
-        for enemy in self.enemies:
-            enemy.draw(self.screen, self.camera.offset)
 
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
