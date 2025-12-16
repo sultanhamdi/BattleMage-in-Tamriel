@@ -7,10 +7,12 @@ import game.level.level2 as level2
 import game.level.level3 as level3
 import game.level.level4 as level4
 import game.level.level5 as level5
+import game.level.level6 as level6
 
 THEMES = {
     'dungeon': 'assets/graphics/tilesets/dungeon.png',
     'snow': 'assets/graphics/tilesets/snow.png',
+    'grass': 'assets/graphics/tilesets/grass.png',
 }
 
 class LevelManager:
@@ -22,7 +24,7 @@ class LevelManager:
         self.load_assets()
         
         # Level Management
-        self.levels = [level1.level_data, level2.level_data, level3.level_data, level4.level_data, level5.level_data]
+        self.levels = [level1.level_data, level2.level_data, level3.level_data, level4.level_data, level5.level_data, level6.level_data]
         self.current_level_index = 0
         self.level_map = self.levels[self.current_level_index]
 
@@ -33,9 +35,12 @@ class LevelManager:
             
             # Dynamic Theme Switching
             # Level 1-3 (Index 0-2) -> Dungeon
-            # Level 4+ (Index 3+) -> Snow
+            # Level 4-5 (Index 3-4) -> Snow
+            # Level 6+ (Index 5+) -> Grass
             target_theme = 'dungeon'
-            if index >= 3:
+            if index >= 5:
+                target_theme = 'grass'
+            elif index >= 3:
                 target_theme = 'snow'
                 
             if self.theme != target_theme:
@@ -105,11 +110,45 @@ class LevelManager:
             visual_tiles = []
             spawn_point = (100, 100)
             finish_rect = None
+            background_images = []  # List of (image, offset_x, offset_y)
+            
+            # Get TMX directory for relative paths (using absolute path)
+            tmx_abs_path = os.path.abspath(filepath)
+            tmx_dir = os.path.dirname(tmx_abs_path)
+            
+            # Parse Image Layers (Background)
+            for imagelayer in root.findall("imagelayer"):
+                img_elem = imagelayer.find("image")
+                if img_elem is not None:
+                    source = img_elem.get("source")
+                    # Resolve relative path from TMX location
+                    img_path = os.path.normpath(os.path.join(tmx_dir, source))
+                    
+                    offset_x = float(imagelayer.get("offsetx", 0)) * SCALE
+                    offset_y = float(imagelayer.get("offsety", 0)) * SCALE
+                    
+                    # Check if tiling is enabled
+                    repeat_x = imagelayer.get("repeatx") == "1"
+                    repeat_y = imagelayer.get("repeaty") == "1"
+                    
+                    if os.path.exists(img_path):
+                        try:
+                            bg_img = pg.image.load(img_path).convert()
+                            # Scale to match game scale
+                            new_w = int(bg_img.get_width() * SCALE)
+                            new_h = int(bg_img.get_height() * SCALE)
+                            bg_img = pg.transform.scale(bg_img, (new_w, new_h))
+                            background_images.append((bg_img, offset_x, offset_y, repeat_x, repeat_y))
+                            print(f"[INFO] Loaded image layer: {source} (repeat: x={repeat_x}, y={repeat_y})")
+                        except Exception as e:
+                            print(f"[WARNING] Failed to load image layer {source}: {e}")
+                    else:
+                        print(f"[WARNING] Image layer not found: {img_path}")
             
             # Check tileset is loaded
             if not self.tileset_img:
                 print("[ERROR] Tileset image not loaded for TMX!")
-                return physics_rects, visual_tiles, spawn_point, finish_rect
+                return physics_rects, visual_tiles, spawn_point, finish_rect, background_images
             
             # Iterate through ALL layers
             for layer in root.findall("layer"):
@@ -179,13 +218,13 @@ class LevelManager:
                         finish_rect = pg.Rect(world_x, world_y, w, h)
                         print(f"[INFO] TMX Finish Point found: {finish_rect}")
 
-            return physics_rects, visual_tiles, spawn_point, finish_rect
+            return physics_rects, visual_tiles, spawn_point, finish_rect, background_images
             
         except Exception as e:
             print(f"[ERROR] Failed to load TMX: {e}")
             if 'physics_rects' in locals():
-                return physics_rects, visual_tiles, spawn_point, finish_rect
-            return [], [], (0,0), None
+                return physics_rects, visual_tiles, spawn_point, finish_rect, background_images
+            return [], [], (0,0), None, []
 
     def create_level(self):
         """Load current level from TMX file"""

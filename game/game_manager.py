@@ -20,7 +20,7 @@ class Game:
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects, Gambar, dan Spawn Point dari Map
-        self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+        self.platforms, self.visual_tiles, spawn_point, finish_rect, self.bg_images = self.level_manager.create_level()
         
         # Hitung Ukuran Level (World Size)
         max_x = 0
@@ -37,7 +37,11 @@ class Game:
         level_height = max(WINDOW_HEIGHT, max_y)
         self.camera.set_world_size(level_width, level_height)
         
-        self.background = self.level_manager.create_world_background(level_width, level_height)
+        # Use TMX background if available, otherwise fallback
+        if not self.bg_images:
+            self.background = self.level_manager.create_world_background(level_width, level_height)
+        else:
+            self.background = None
         self.void_image = self.level_manager.tile_images.get('#')
         
         # Spawn player
@@ -116,7 +120,7 @@ class Game:
             self.level_manager.set_level(next_level_index)
             
             # Re-Generate Level
-            self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+            self.platforms, self.visual_tiles, spawn_point, finish_rect, self.bg_images = self.level_manager.create_level()
             self.finish_rect = finish_rect
             
             # Re-Calculate Background Size
@@ -133,8 +137,11 @@ class Game:
             level_height = max(WINDOW_HEIGHT, max_y)
             self.camera.set_world_size(level_width, level_height)
             
-            # Re-Create Background (World Size)
-            self.background = self.level_manager.create_world_background(level_width, level_height)
+            # Use TMX background if available, otherwise fallback
+            if not self.bg_images:
+                self.background = self.level_manager.create_world_background(level_width, level_height)
+            else:
+                self.background = None
             self.void_image = self.level_manager.tile_images.get('#')
             
             # Reset Player Position & Camera
@@ -167,10 +174,39 @@ class Game:
         else:
             self.screen.fill(BG_COLOR)
         
-        # Draw Level Background (Dungeon Image)
-        bg_x = -self.camera.offset.x
-        bg_y = -self.camera.offset.y
-        self.screen.blit(self.background, (bg_x, bg_y))
+        # Draw Level Background
+        if self.bg_images:
+            # Render TMX image layers
+            for bg_data in self.bg_images:
+                bg_img, offset_x, offset_y, repeat_x, repeat_y = bg_data
+                
+                img_w = bg_img.get_width()
+                img_h = bg_img.get_height()
+                
+                if repeat_x or repeat_y:
+                    # Tiling mode
+                    start_x = int(offset_x - self.camera.offset.x) % img_w - img_w
+                    start_y = int(offset_y - self.camera.offset.y) % img_h - img_h
+                    
+                    # Calculate tiling range
+                    end_x = WINDOW_WIDTH + img_w if repeat_x else start_x + img_w
+                    end_y = WINDOW_HEIGHT + img_h if repeat_y else start_y + img_h
+                    step_x = img_w if repeat_x else img_w * 999  # Large step if no repeat
+                    step_y = img_h if repeat_y else img_h * 999
+                    
+                    for x in range(start_x, int(end_x), step_x):
+                        for y in range(start_y, int(end_y), step_y):
+                            self.screen.blit(bg_img, (x, y))
+                else:
+                    # Single image mode
+                    bg_x = offset_x - self.camera.offset.x
+                    bg_y = offset_y - self.camera.offset.y
+                    self.screen.blit(bg_img, (bg_x, bg_y))
+        elif self.background:
+            # Fallback to generated background
+            bg_x = -self.camera.offset.x
+            bg_y = -self.camera.offset.y
+            self.screen.blit(self.background, (bg_x, bg_y))
         
         # Gambar Tileset
         for img, rect in self.visual_tiles:
