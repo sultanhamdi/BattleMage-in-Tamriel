@@ -17,6 +17,7 @@ from game.entities.enemies.grass_monster.flying_eye import FlyingEye
 from game.entities.enemies.ice_monster.ice_skeleton import IceSkeleton
 from game.entities.enemies.ice_monster.guardian import Guardian
 from game.entities.enemies.ice_monster.golem import Golem
+from game.utils.projectile import ProjectileManager
 
 class TestWorld:
     """Test world using GameManager for proper combat."""
@@ -274,6 +275,12 @@ class TestWorld:
             self.game.check_player_attack_collision()
             self.game.check_enemy_attack_collision()
             
+            # Update projectiles
+            pm = ProjectileManager.get_instance()
+            projectile_damage = pm.update(self.game.player, self.game.platforms)
+            if projectile_damage > 0:
+                print(f"[PROJECTILE] Hit player for {projectile_damage} damage!")
+            
             # Camera
             self.update_camera()
             
@@ -378,6 +385,10 @@ class TestWorld:
                         80, 70
                     )
                     pg.draw.rect(self.screen, (0, 255, 255), attack_box, 2)
+            
+            # Draw projectiles
+            pm = ProjectileManager.get_instance()
+            pm.draw(self.screen, self.camera_offset)
             
             # ===== ON-SCREEN UI OVERLAY =====
             # Background overlay for readability

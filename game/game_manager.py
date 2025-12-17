@@ -323,9 +323,12 @@ class Game:
                     if current_frame < 5:
                         continue  # Not yet in active frames
                 elif enemy.state == 'cast':
-                    # Cast spell: larger hitbox, active from frame 4
-                    if current_frame < 4:
-                        continue  # Still channeling
+                    # Cast animation is channeling phase - no damage yet
+                    continue  # Skip damage during cast animation
+                elif enemy.state == 'spell':
+                    # Spell state: tornado visual, active from frame 6
+                    if current_frame < 6:
+                        continue  # Tornado not yet hitting
                     attack_width = 180  # Wider spell range
                     attack_height = 120
                     
@@ -424,10 +427,16 @@ class Game:
                 # Apply damage
                 damage = enemy.attack_power
                 
-                # Special handling for BringerOfDeath spell attacks
-                if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'cast':
-                    # Use spell damage instead of normal attack power
-                    damage = getattr(enemy, 'spell_damage', enemy.attack_power)
+                # Special BOD Spell Damage & Stun (applied during 'spell' state, not 'cast')
+                if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'spell':
+                    if hasattr(enemy, 'spell_damage'):
+                        damage = enemy.spell_damage
+                    # Apply STUN to player (2 seconds)
+                    self.player.is_stunned = True
+                    self.player.stun_end_time = pg.time.get_ticks() + 2000
+                    self.player.state = 'hurt'
+                    self.player.animator.frame_index = 0  # Reset animation frame
+                    print(f"[COMBAT] Player STUNNED by BOD Spell! Duration: 2s")
                     
                     # Apply knockback
                     knockback = getattr(enemy, 'spell_knockback', 0)
@@ -553,6 +562,8 @@ class Game:
             # Note: Entity collision is handled in BaseEnemy.avoid_player_collision()
             self.remove_dead_enemies()
             
+            # Update projectiles and check for player damage
+            projectile_damage = self.projectile_manager.update(self.player, self.platforms)
             if projectile_damage > 0 and self.player.alive:
                 self.player.take_damage(projectile_damage)
             

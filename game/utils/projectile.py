@@ -11,14 +11,15 @@ import pygame as pg
 
 
 class Projectile:
-    """Single projectile entity."""
+    """Single projectile entity with impact animation support."""
     
     # Default projectile settings
     DEFAULT_HITBOX_SIZE = (20, 12)  # Width x Height for hitbox
     MAX_TRAVEL_DISTANCE = 500       # Maximum pixels before despawn
     MAX_LIFETIME = 300              # Maximum frames alive (5 seconds at 60fps)
     
-    def __init__(self, x, y, direction, speed, damage, sprites=None, scale=1.0):
+    def __init__(self, x, y, direction, speed, damage, sprites=None, scale=1.0, 
+                 impact_start_frame=None):
         """
         Initialize projectile.
         
@@ -29,6 +30,7 @@ class Projectile:
             damage: Damage dealt on hit
             sprites: List of animation frames (optional)
             scale: Scale factor for sprites
+            impact_start_frame: Frame index where impact animation starts (None = no impact anim)
         """
         self.start_x = float(x)
         self.start_y = float(y)
@@ -42,8 +44,13 @@ class Projectile:
         # Animation
         self.sprites = sprites or []
         self.current_frame = 0
-        self.animation_speed = 0.2  # Faster animation
+        self.animation_speed = 0.2  # Animation speed
         self.animation_timer = 0
+        
+        # Impact animation support
+        self.impact_start_frame = impact_start_frame  # Frame where impact starts
+        self.is_impacting = False  # True when playing impact animation
+        self.impact_finished = False  # True when impact anim done
         
         # Lifetime tracking
         self.lifetime = 0
@@ -63,9 +70,23 @@ class Projectile:
         
         self.alive = True
         self.hit_player = False
+        self.hit_wall = False
     
-    def update(self):
+    def trigger_impact(self):
+        """Trigger impact animation (call when hitting player/wall)."""
+        if self.impact_start_frame is not None and not self.is_impacting:
+            self.is_impacting = True
+            self.current_frame = self.impact_start_frame
+            self.speed = 0  # Stop moving
+            print(f"[PROJECTILE] Impact triggered at frame {self.impact_start_frame}")
+    
+    def update(self, platforms=None):
         """Update projectile position and animation."""
+        # If impacting, just play impact animation then die
+        if self.is_impacting:
+            self._update_impact_animation()
+            return
+        
         # Move
         self.x += self.direction * self.speed
         self.rect.centerx = int(self.x)
@@ -73,18 +94,32 @@ class Projectile:
         # Lifetime counter
         self.lifetime += 1
         
-        # Animate
-        if self.sprites:
+        # Check wall collision
+        if platforms:
+            self._check_wall_collision(platforms)
+        
+        # Animate (only non-impact frames)
+        if self.sprites and not self.is_impacting:
             self.animation_timer += self.animation_speed
             if self.animation_timer >= 1.0:
                 self.animation_timer = 0
-                self.current_frame = (self.current_frame + 1) % len(self.sprites)
-                self.image = self.sprites[self.current_frame]
+                # Loop only through flight frames (before impact)
+                max_flight_frame = self.impact_start_frame - 1 if self.impact_start_frame else len(self.sprites) - 1
+                next_frame = self.current_frame + 1
+                if next_frame > max_flight_frame:
+                    next_frame = 0  # Loop back
+                self.current_frame = next_frame
+                if self.current_frame < len(self.sprites):
+                    self.image = self.sprites[self.current_frame]
         
         # Check if exceeded max distance
         distance_traveled = abs(self.x - self.start_x)
         if distance_traveled > self.max_distance:
-            self.alive = False
+            # Trigger impact or die
+            if self.impact_start_frame:
+                self.trigger_impact()
+            else:
+                self.alive = False
         
         # Check lifetime
         if self.lifetime > self.MAX_LIFETIME:
@@ -94,9 +129,43 @@ class Projectile:
         if self.x < -200 or self.x > 5000 or self.y < -200 or self.y > 5000:
             self.alive = False
     
+    def _update_impact_animation(self):
+        """Play impact animation frames then die."""
+        self.animation_timer += self.animation_speed
+        if self.animation_timer >= 1.0:
+            self.animation_timer = 0
+            self.current_frame += 1
+            
+            if self.current_frame >= len(self.sprites):
+                # Impact animation done
+                self.alive = False
+                self.impact_finished = True
+            else:
+                self.image = self.sprites[self.current_frame]
+    
+    def _check_wall_collision(self, platforms):
+        """Check if projectile hit a wall/tile."""
+        # Get front edge of projectile based on direction
+        if self.direction > 0:
+            front_x = self.rect.right
+        else:
+            front_x = self.rect.left
+        
+        # Check collision with any platform
+        check_rect = pg.Rect(front_x - 2, self.rect.y, 4, self.rect.height)
+        
+        for platform in platforms:
+            # Handle both pg.Rect and objects with .rect attribute
+            platform_rect = platform.rect if hasattr(platform, 'rect') else platform
+            if check_rect.colliderect(platform_rect):
+                self.hit_wall = True
+                self.trigger_impact()
+                print(f"[PROJECTILE] Hit wall!")
+                break
+    
     def check_collision(self, player):
         """Check collision with player."""
-        if not self.alive or not player.alive:
+        if not self.alive or not player.alive or self.is_impacting:
             return False
         
         # Use physics rect for more accurate collision
@@ -104,7 +173,7 @@ class Projectile:
         
         if self.rect.colliderect(player_rect):
             self.hit_player = True
-            self.alive = False
+            self.trigger_impact()
             return True
         return False
     
@@ -154,7 +223,8 @@ class ProjectileManager:
         self.projectiles = []
     
     def spawn_projectile(self, x, y, direction, speed=8, damage=10, 
-                        sprite_path=None, scale=1.5, max_distance=None):
+                        sprite_path=None, scale=1.5, max_distance=None,
+                        impact_start_frame=None):
         """
         Spawn a new projectile.
         
@@ -166,6 +236,7 @@ class ProjectileManager:
             sprite_path: Path to projectile sprite folder
             scale: Sprite scale factor
             max_distance: Max travel distance before despawn (None = default)
+            impact_start_frame: Frame where impact animation starts
         
         Returns:
             The created Projectile instance
@@ -194,21 +265,24 @@ class ProjectileManager:
         if sprite_path and sprite_path in self.sprite_cache:
             sprites = self.sprite_cache[sprite_path]
         
-        projectile = Projectile(x, y, direction, speed, damage, sprites, scale)
+        projectile = Projectile(x, y, direction, speed, damage, sprites, scale, 
+                                impact_start_frame=impact_start_frame)
         
         # Apply custom max distance if specified
         if max_distance is not None:
             projectile.max_distance = max_distance
         
         self.projectiles.append(projectile)
+        print(f"[PROJECTILE] Spawned at ({x},{y}) dir={direction} frames={len(sprites)}")
         return projectile
     
-    def update(self, player):
+    def update(self, player, platforms=None):
         """
         Update all projectiles and check collisions.
         
         Args:
             player: Player instance for collision checking
+            platforms: List of platform tiles for wall collision
         
         Returns:
             Total damage dealt to player this frame
@@ -216,7 +290,7 @@ class ProjectileManager:
         total_damage = 0
         
         for projectile in self.projectiles[:]:  # Copy list for safe removal
-            projectile.update()
+            projectile.update(platforms)
             
             # Check collision with player
             if projectile.check_collision(player):
@@ -238,3 +312,4 @@ class ProjectileManager:
     def count(self):
         """Number of active projectiles."""
         return len(self.projectiles)
+

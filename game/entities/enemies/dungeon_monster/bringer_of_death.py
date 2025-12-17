@@ -111,21 +111,21 @@ class BringerOfDeath(BaseEnemy):
             self.is_attacking = False
             self.animator.animation_finished = False
         
-        # Exit cast state after spell VISUAL animation finishes (not just cast animation)
-        if self.state == 'cast' and not self.is_casting:
+        # Exit spell state after spell VISUAL animation finishes
+        if self.state == 'spell' and not self.is_casting:
             # Check if spell visual has finished playing (frame index reached end)
             current_frame = int(self.animator.frame_index)
             spell_frames = self.animator.animations.get('spell', [])
-            print(f"[BOD SPELL EXIT CHECK] Frame {current_frame}/{len(spell_frames)}, checking completion...")
+            print(f"[BOD SPELL VISUAL] Frame {current_frame}/{len(spell_frames)}, playing tornado...")
             
-            # ONLY exit when spell frames fully complete (don't use is_animation_finished - too early!)
+            # ONLY exit when spell frames fully complete
             if len(spell_frames) > 0 and current_frame >= len(spell_frames) - 1:
                 self.state = 'idle'
                 self.ai_state = self.STATE_CHASE  # Return to chasing
                 self.animator.animation_finished = False
                 self.spell_target_player = False  # Release curse
-                print(f"[BRINGER] Spell complete at frame {current_frame}/{len(spell_frames)}, resuming chase!")
-                print(f"🎯 [CURSE] Tornado dissipated, curse released!")
+                print(f"[BRINGER] Spell visual complete at frame {current_frame}/{len(spell_frames)}, resuming chase!")
+                print(f"[CURSE] Tornado dissipated, curse released!")
         
         # 4. Check phase transitions
         hp_ratio = self.current_hp / self.max_hp
@@ -145,13 +145,17 @@ class BringerOfDeath(BaseEnemy):
             # print(f"[BRINGER UPDATE] pos=({self.physics.rect.x},{self.physics.rect.y}) player_ref={'Yes' if self.player_ref else 'NONE'}")
             self._update_ai()
             
-            # Map AI state to visual state (like Skullwolf does)
-            if self.ai_state in [self.STATE_CHASE, self.STATE_PATROL]:
+            # Map AI state to visual state - BUT skip if casting/spell (already set by _update_ai)
+            if self.is_casting or self.state in ['cast', 'spell']:
+                pass  # Don't override cast/spell states
+            elif self.ai_state in [self.STATE_CHASE, self.STATE_PATROL]:
                 self.state = 'walk'
             elif self.ai_state == self.STATE_ATTACK:
                 self.state = 'attack'
             elif self.ai_state == 'cast':
                 self.state = 'cast'
+            elif self.ai_state == 'spell':
+                self.state = 'spell'
             elif self.ai_state == self.STATE_IDLE:
                 self.state = 'idle'
         else:
@@ -183,28 +187,32 @@ class BringerOfDeath(BaseEnemy):
         
         # Handle spell casting - PRIORITY, exit early to prevent other state changes
         if self.is_casting:
-            # CAST STATE DEBUG - Print every frame during casting
+            # Get current animation info
             frame_idx = int(self.animator.frame_index)
-            spell_frames = self.animator.animations.get('spell', [])
-            print(f"🌪️ [BOD CASTING] Frame={frame_idx}/{len(spell_frames)} is_casting=True state={self.state}")
+            cast_frames = self.animator.animations.get('cast', [])
+            
+            print(f"[BOD CASTING] Frame={frame_idx}/{len(cast_frames)} is_casting=True state={self.state}")
             
             # Force state to cast (prevent other logic from changing it)
             self.state = 'cast'
             self.ai_state = 'cast'
             self.physics.velocity_x = 0
             
-            if self.animator.is_animation_finished():
-                # Cast animation completed - trigger spell damage
+            # Check if cast animation reaches frame 5 - trigger spell transition
+            if frame_idx >= 5:
+                # Cast animation completed - trigger spell damage and start spell visual
                 self.cast_spell()
                 spell_cd = self.SPELL_COOLDOWN
                 if self.current_phase >= 2:
                     spell_cd = int(spell_cd * 0.7)  # Faster spells in phase 2+
                 self.spell_cooldown = spell_cd
-                # STAY in cast state longer - spell visual needs to play
-                # is_casting becomes False but state stays 'cast' for visual
-                self.is_casting = False
-                # AI will exit cast state after spell visual finishes (in update logic below)
-                print(f"🌪️ [BOD SPELL TRIGGERED] Damage applied, staying in cast state for visual")
+                
+                # Switch to 'spell' state for tornado visual!
+                self.state = 'spell'
+                self.ai_state = 'spell'
+                self.is_casting = False  # Cast phase done, now in spell visual phase
+                self.animator.reset_animation()  # Reset to start spell animation from frame 0
+                print(f"[BOD] Cast complete at frame {frame_idx}! Switching to SPELL visual animation")
             return  # Exit early - don't run normal state machine during cast
         
         distance = self.get_distance_to_player()
@@ -218,12 +226,17 @@ class BringerOfDeath(BaseEnemy):
         
         # DEBUG: Always print when spell ready flag is true
         if self.is_spell_ready:
-            print(f"⚠️ [SPELL READY FLAG] TRUE! Checking conditions...")
+            print(f"[SPELL READY FLAG] TRUE! Checking conditions...")
             print(f"  distance={distance:.1f} <= SPELL_RANGE={self.SPELL_RANGE}? {distance <= self.SPELL_RANGE}")
             print(f"  spell_cooldown={self.spell_cooldown} <= 0? {self.spell_cooldown <= 0}")
         
-        # PRIORITY: Cast spell if ready (before melee check!) - MUST BE 'if' not 'elif'!
+        # PRIORITY: Cast spell if ready - INTERRUPT any current attack!
         if distance <= self.SPELL_RANGE and self.spell_cooldown <= 0 and self.is_spell_ready:
+            # INTERRUPT current attack to cast spell!
+            if self.is_attacking:
+                print(f"[STOP] [BOD] INTERRUPTING attack to cast spell!")
+                self.is_attacking = False
+            
             # SPELL CAST - only if hit counter reached threshold
             self.ai_state = 'cast'
             self.state = 'cast'  # Also set visual state
@@ -234,12 +247,10 @@ class BringerOfDeath(BaseEnemy):
             self.animator.reset_animation()
             self.physics.velocity_x = 0
             spell_frames = self.animator.animations.get('spell', [])
-            print(f"🌪️ [BRINGER] ENTERING CAST STATE! Total spell frames: {len(spell_frames)}")
-            print(f"🎯 [CURSE] Tornado locked onto player! Cannot escape!")
+            print(f"[BRINGER] ENTERING CAST STATE! Total spell frames: {len(spell_frames)}")
+            print(f"[CURSE] Tornado locked onto player! Cannot escape!")
             print(f"[BRINGER] SPELL CAST INITIATED! (Was hit {self.CAST_TRIGGER_HITS} times)")
-
-            
-            
+            return  # Exit early - don't run attack logic
         elif distance <= self.attack_range:
             # Check if player is stunned from our spell - wait patiently
             if hasattr(self.player_ref, 'is_stunned') and self.player_ref.is_stunned:
@@ -293,9 +304,9 @@ class BringerOfDeath(BaseEnemy):
     
     def take_damage(self, amount, apply_stun=False):
         """Override take damage - boss resistance and cast trigger."""
-        # Immune during cast animation
-        if self.is_casting:
-            print(f"[BRINGER] IMMUNE during cast!")
+        # Immune during cast/spell animation
+        if self.is_casting or self.state in ['cast', 'spell']:
+            print(f"[BRINGER] IMMUNE during cast/spell!")
             return
         
         # High resistance
@@ -314,36 +325,41 @@ class BringerOfDeath(BaseEnemy):
     
     def draw(self, surface, camera_offset):
         """Override draw to add spell animation overlay."""
-        # Draw base enemy (call parent)
-        super().draw(surface, camera_offset)
-        
-        # Draw spell effect overlay when casting
-        if self.state == 'cast' and self.player_ref:
-            # Get current frame for spell animation
-            frame_idx = int(self.animator.frame_index)
+        # During SPELL state: Draw BOD body with CAST animation (last cast pose)
+        # and ALSO progress spell animation for overlay
+        if self.state == 'spell':
+            # Progress spell animation (but don't use returned frame for BOD body)
+            spell_frame = self.animator.animate('spell', self.animator.animation_speed, self.facing_right)
             
-            # Only show spell starting from frame 6 (after channeling)
-            if frame_idx < 6:
-                return  # Still channeling, no spell visible yet
-            
-            # Spell animation is in the 'spell' folder
-            spell_frames = self.animator.animations.get('spell')
-            
-            if spell_frames and frame_idx < len(spell_frames):
-                spell_img = spell_frames[frame_idx]
-                
-                # Flip if facing left
+            # Draw BOD body with last frame of cast animation
+            cast_frames = self.animator.animations.get('cast', [])
+            if cast_frames:
+                frame_img = cast_frames[-1]
                 if not self.facing_right:
-                    spell_img = pg.transform.flip(spell_img, True, False)
+                    frame_img = pg.transform.flip(frame_img, True, False)
                 
-                # Position spell effect ABOVE player's hitbox
-                spell_w = spell_img.get_width()
-                spell_h = spell_img.get_height()
+                img_width = frame_img.get_width()
+                img_height = frame_img.get_height()
+                offset_x = (img_width - self.physics.rect.width) // 2
+                offset_y = (img_height - self.physics.rect.height) - self.sprite_offset_y
                 
-                # Center spell horizontally on player
+                if self.sprite_anchor_offset != 0:
+                    if self.facing_right:
+                        offset_x += self.sprite_anchor_offset
+                    else:
+                        offset_x -= self.sprite_anchor_offset
+                
+                draw_x = self.physics.rect.x - camera_offset.x - offset_x
+                draw_y = self.physics.rect.y - camera_offset.y - offset_y
+                surface.blit(frame_img, (draw_x, draw_y))
+            
+            # Draw tornado overlay on player using the spell_frame
+            if spell_frame and self.player_ref:
+                spell_w = spell_frame.get_width()
+                spell_h = spell_frame.get_height()
                 spell_x = self.player_ref.physics.rect.centerx - (spell_w // 2) - camera_offset.x
-                
-                # Position ABOVE player's hitbox (raised 100px for tornado effect)
                 spell_y = self.player_ref.physics.rect.centery - (spell_h // 2) - 100 - camera_offset.y
-                
-                surface.blit(spell_img, (spell_x, spell_y))
+                surface.blit(spell_frame, (spell_x, spell_y))
+        else:
+            # Normal draw (includes cast animation)
+            super().draw(surface, camera_offset)

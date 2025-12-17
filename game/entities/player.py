@@ -77,9 +77,13 @@ class Player(Entity):
                     self.state = 'idle'
                 print(f"[STUN] Player recovered from stun!")
             else:
+                # FORCE hurt state during stun (prevent other states)
+                self.state = 'hurt'
                 # Keep looping hurt animation during stun
-                if self.state == 'hurt' and self.animator.is_animation_finished():
-                    self.animator.reset_animation()  # Loop hurt animation
+                if self.animator.animation_finished:
+                    self.animator.frame_index = 0  # Loop hurt animation
+                    self.animator.animation_finished = False
+                    print(f"[STUN] Looping hurt animation...")
         
         # Cek Invincibility
         if self.is_invincible:
@@ -280,6 +284,11 @@ class Player(Entity):
         if not self.alive:
             self.state = 'death'
             return
+
+        # STUN CHECK - Lock hurt state during stun (highest priority after death)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            self.state = 'hurt'
+            return  # Block ALL state changes during stun
 
         # Prioritas 0: Dash
         if self.is_dashing:

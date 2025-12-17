@@ -19,7 +19,9 @@ class Goblin(BaseEnemy):
     """
     
     # AI CONSTANTS
-    PROJECTILE_COOLDOWN = 600  # 10 seconds at 60fps
+    RANGE_COOLDOWN = 420  # 7 seconds at 60fps
+    PROJECTILE_SPAWN_FRAME = 6  # Frame in range animation when projectile spawns
+    PROJECTILE_IMPACT_FRAME = 12  # Frame in projectile anim where impact starts
     
     def __init__(self, x, y):
         super().__init__(
@@ -43,11 +45,10 @@ class Goblin(BaseEnemy):
         self.attack_box_width = 70
         self.attack_box_height = 60
         
-        # Projectile system
-        self.projectile_cooldown = 0
-        self.range_attack_count = 0
-        self.max_range_attacks = 2
-        self.force_melee = False
+        # Range attack system
+        self.range_cooldown = 0
+        self.is_range_attacking = False  # True when playing range animation
+        self.projectile_fired = False    # True after projectile fired this attack
         
         # Range attack STATE
         self.is_range_attacking = False  # True when playing range animation
@@ -67,8 +68,7 @@ class Goblin(BaseEnemy):
             'walk': 'run',
             'attack': 'attack',
             'attack2': 'attack2',
-            # DISABLED: Range/projectile for now - focus on basic actions
-            # 'range': 'range',
+            'range': 'range',  # Range attack animation
             'hurt': 'take_hit',
             'die': 'death',
         }
@@ -80,9 +80,9 @@ class Goblin(BaseEnemy):
         # 1. Update Timers
         self.update_timers()
         
-        # Cooldown
-        if self.projectile_cooldown > 0:
-            self.projectile_cooldown -= 1
+        # Cooldowns
+        if self.range_cooldown > 0:
+            self.range_cooldown -= 1
         
         # 2. Handle hurt state
         current_time = pg.time.get_ticks()
@@ -134,13 +134,32 @@ class Goblin(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """AI State Machine - Goblin's versatile combat."""
+        """AI State Machine - Goblin's versatile combat with range attack."""
         if not self.player_ref or not self.alive:
             self.ai_state = self.STATE_IDLE
             self.physics.velocity_x = 0
             return
+        
+        # === HANDLE ONGOING RANGE ATTACK (PRIORITY - like BOD cast) ===
+        if self.is_range_attacking:
+            self.physics.velocity_x = 0  # Don't move during range attack
+            self.ai_state = 'range'
             
-        # 1. STRICT LOCK: If attacking, freeze velocity and do nothing else
+            # Fire projectile at spawn frame
+            frame_idx = int(self.animator.frame_index)
+            if not self.projectile_fired and frame_idx >= self.PROJECTILE_SPAWN_FRAME:
+                self._fire_projectile()
+                self.projectile_fired = True
+            
+            # Animation finished - end range attack
+            if self.animator.is_animation_finished():
+                self.is_range_attacking = False
+                self.projectile_fired = False
+                self.range_cooldown = self.RANGE_COOLDOWN  # Start 7s cooldown
+                print(f"[GOBLIN] Range attack complete, cooldown started")
+            return  # Exit early - don't run normal state machine
+        
+        # 1. STRICT LOCK: If melee attacking, freeze velocity and do nothing else
         if self.is_attacking:
             self.physics.velocity_x = 0
             return
@@ -149,35 +168,30 @@ class Goblin(BaseEnemy):
         direction = self.get_direction_to_player()
         self.facing_right = direction > 0
         
-        # DISABLED: Range attack logic - focus on basic actions first
-        # === HANDLE ONGOING RANGE ATTACK ===
-        # if self.is_range_attacking:
-        #     # Fire projectile at mid-point of animation (frame 6+)
-        #     if not self.projectile_fired and self.animator.frame_index >= 6:
-        #         self._fire_projectile()
-        #         self.projectile_fired = True
-        #     
-        #     # Animation finished - end range attack
-        #     if self.animator.is_animation_finished():
-        #         self.is_range_attacking = False
-        #         self.projectile_fired = False
-        #         self.projectile_cooldown = self.PROJECTILE_COOLDOWN
-        #         self.range_attack_count += 1
-        #         
-        #         # Check if must go melee
-        #         if self.range_attack_count >= self.max_range_attacks:
-        #             self.force_melee = True
-        #     
-        #     self.physics.velocity_x = 0  # Don't move during range attack
-        #     return
+        # === PRIORITY: RANGE ATTACK (like BOD spell) ===
+        # Trigger BEFORE melee check - range has priority
+        if (distance <= self.range_attack_range and 
+            distance > self.attack_range and  # Not in melee range
+            self.range_cooldown <= 0):
+            # INTERRUPT melee attack if any
+            if self.is_attacking:
+                self.is_attacking = False
+                print(f"[GOBLIN] Interrupting attack for range!")
+            
+            # START range attack animation
+            self.is_range_attacking = True
+            self.projectile_fired = False
+            self.animator.reset_animation()
+            self.physics.velocity_x = 0
+            self.ai_state = 'range'
+            print(f"[GOBLIN] Starting range attack!")
+            return
         
         # === NORMAL STATE MACHINE ===
         
         # Too far - lose interest
         if distance > self.lose_interest_range:
             self.ai_state = self.STATE_IDLE
-            self.force_melee = False
-            self.range_attack_count = 0
             self.physics.velocity_x = 0
             return
         
@@ -200,56 +214,43 @@ class Goblin(BaseEnemy):
                     self.attack_combo_count += 1
                 
                 self.do_attack()
-                # Reset after melee
-                self.force_melee = False
-                self.range_attack_count = 0
             self.physics.velocity_x = 0
             return
-        
-        # DISABLED: Force melee logic (part of range attack system)
-        # if self.force_melee:
-        #     self.ai_state = self.STATE_CHASE
-        #     self.physics.velocity_x = direction * self.movement_speed
-        #     return
-        
-        # DISABLED: Range attack trigger
-        # # Can start range attack?
-        # if (distance < self.range_attack_range and 
-        #     self.projectile_cooldown <= 0 and 
-        #     self.range_attack_count < self.max_range_attacks):
-        #     # START range attack animation
-        #     self.is_range_attacking = True
-        #     self.projectile_fired = False
-        #     self.animator.reset_animation()
-        #     self.physics.velocity_x = 0
-        #     return
         
         # Default - chase
         self.ai_state = self.STATE_CHASE
         self.physics.velocity_x = direction * self.movement_speed
     
     def _fire_projectile(self):
-        """Fire projectile during range animation."""
+        """Fire projectile during range animation - spawn in front of enemy."""
         direction = self.get_direction_to_player()
         
-        spawn_x = self.rect.centerx + (direction * 25)
-        spawn_y = self.rect.centery
+        # Spawn in front of enemy's bounding box
+        if direction > 0:  # Facing right
+            spawn_x = self.physics.rect.right + 5
+        else:  # Facing left
+            spawn_x = self.physics.rect.left - 5
+        spawn_y = self.physics.rect.centery
         
         pm = ProjectileManager.get_instance()
         pm.spawn_projectile(
             x=spawn_x,
             y=spawn_y,
             direction=direction,
-            speed=6,
-            damage=10,
+            speed=8,
+            damage=12,
             sprite_path=GOBLIN_PROJECTILE_PATH,
             scale=2.0,
-            max_distance=350
+            max_distance=400,
+            impact_start_frame=self.PROJECTILE_IMPACT_FRAME
         )
-        print(f"[GOBLIN] Projectile fired! ({self.range_attack_count + 1}/{self.max_range_attacks})")
+        print(f"[GOBLIN] Projectile fired at ({spawn_x}, {spawn_y})!")
     
     def take_damage(self, amount, apply_stun=False):
-        """Override - interrupt range attack if hit."""
-        self.is_range_attacking = False
-        self.projectile_fired = False
+        """Override - IMMUNE during range attack (like BOD during cast)."""
+        # Immune during range attack animation
+        if self.is_range_attacking:
+            print(f"[GOBLIN] IMMUNE during range attack!")
+            return
+        
         super().take_damage(amount, apply_stun=apply_stun)
