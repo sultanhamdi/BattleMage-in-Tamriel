@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="50" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="4">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="50" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="13">
  <tileset firstgid="1" source="grass.tsx"/>
  <imagelayer id="4" name="Background" offsetx="-1" offsety="-6.33333">
   <image source="../../assets/graphics/tilesets/grass_bg.png" width="1166" height="656"/>
@@ -115,6 +115,16 @@
  <objectgroup id="2" name="Object Layer 1">
   <object id="1" name="P" x="23.1591" y="436.281"/>
   <object id="2" name="F" x="24.8918" y="109.731"/>
-  <object id="3" x="1134.67" y="777.333" width="1.33333"/>
+ </objectgroup>
+ <objectgroup id="6" name="Enemy">
+  <object id="4" name="FlyingEye" x="396" y="550"/>
+  <object id="5" name="Goblin" x="523" y="543"/>
+  <object id="6" name="Mushroom" x="618" y="538"/>
+  <object id="7" name="Skeleton" x="444" y="301"/>
+  <object id="8" name="Goblin" x="185" y="608"/>
+  <object id="9" name="Goblin" x="284" y="609"/>
+  <object id="10" name="Mushroom" x="116" y="434"/>
+  <object id="11" name="Skeleton" x="173" y="108"/>
+  <object id="12" name="FlyingEye" x="290" y="121"/>
  </objectgroup>
 </map>

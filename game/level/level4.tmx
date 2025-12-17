@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="75" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="11" nextobjectid="12">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="75" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="12" nextobjectid="26">
  <tileset firstgid="1" source="snow.tsx"/>
  <layer id="10" name="Decoration" width="75" height="50">
   <data encoding="csv">
@@ -112,5 +112,18 @@
  <objectgroup id="2" name="Object Layer 1">
   <object id="6" name="P" x="32.6667" y="633.5"/>
   <object id="7" name="F" x="24.6667" y="168"/>
+ </objectgroup>
+ <objectgroup id="11" name="Enemy">
+  <object id="12" name="IceSkeleton" x="181.111" y="636.667"/>
+  <object id="16" name="IceSkeleton" x="245.556" y="636.667"/>
+  <object id="17" name="IceSkeleton" x="308.889" y="635.556"/>
+  <object id="18" name="IceSkeleton" x="516.667" y="520"/>
+  <object id="19" name="IceSkeleton" x="596.667" y="518.889"/>
+  <object id="20" name="Golem" x="792.222" y="633.333"/>
+  <object id="21" name="Golem" x="960" y="631.111"/>
+  <object id="22" name="Golem" x="332.222" y="122.222"/>
+  <object id="23" name="IceSkeleton" x="632.222" y="166.667"/>
+  <object id="24" name="IceSkeleton" x="1147.78" y="158.889"/>
+  <object id="25" name="IceSkeleton" x="120" y="161.111"/>
  </objectgroup>
 </map>

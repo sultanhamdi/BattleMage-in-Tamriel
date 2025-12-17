@@ -33,11 +33,7 @@ class LevelManager:
         if 0 <= index < len(self.levels):
             self.current_level_index = index
             self.level_map = self.levels[index]
-            
-            # Dynamic Theme Switching
-            # Level 1-3 (Index 0-2) -> Dungeon
-            # Level 4-5 (Index 3-4) -> Snow
-            # Level 6+ (Index 5+) -> Grass
+
             target_theme = 'dungeon'
             if index >= 5:
                 target_theme = 'grass'

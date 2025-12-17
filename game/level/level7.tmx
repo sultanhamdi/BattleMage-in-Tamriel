@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="90" height="70" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="2">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="90" height="70" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="18">
  <tileset firstgid="1" source="grass.tsx"/>
  <imagelayer id="4" name="Background" offsetx="-550.5" offsety="-22">
   <image source="../../assets/graphics/tilesets/grass_bg2.png" width="1991" height="1120"/>
@@ -152,6 +152,22 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
+ <objectgroup id="5" name="Enemy">
+  <object id="2" name="Mushroom" x="1264" y="245.333"/>
+  <object id="3" name="Mushroom" x="298.667" y="502.667"/>
+  <object id="4" name="Goblin" x="685.333" y="133.333"/>
+  <object id="5" name="Goblin" x="904" y="117.333"/>
+  <object id="6" name="Goblin" x="150.667" y="124"/>
+  <object id="7" name="Skeleton" x="173.333" y="474.667"/>
+  <object id="8" name="Skeleton" x="616" y="654.667"/>
+  <object id="9" name="FlyingEye" x="434.667" y="872"/>
+  <object id="10" name="Mushroom" x="592" y="850.667"/>
+  <object id="11" name="Skeleton" x="257.333" y="1022.67"/>
+  <object id="12" name="Skeleton" x="444" y="1009.33"/>
+  <object id="15" name="BringerOfDeath" x="628" y="1022.67"/>
+  <object id="16" name="DemonSlime" x="833.333" y="1026.67"/>
+  <object id="17" name="Guardian" x="1142.67" y="1028"/>
+ </objectgroup>
  <objectgroup id="2" name="Object Layer 1">
   <object id="1" name="P" x="1409" y="267"/>
  </objectgroup>
