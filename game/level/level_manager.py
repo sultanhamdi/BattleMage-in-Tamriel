@@ -145,7 +145,7 @@ class LevelManager:
             # Check tileset is loaded
             if not self.tileset_img:
                 print("[ERROR] Tileset image not loaded for TMX!")
-                return physics_rects, visual_tiles, spawn_point, finish_rect, background_images
+                return physics_rects, visual_tiles, spawn_point, finish_rect, background_images, []
             
             # Iterate through ALL layers
             for layer in root.findall("layer"):
@@ -215,13 +215,30 @@ class LevelManager:
                         finish_rect = pg.Rect(world_x, world_y, w, h)
                         print(f"[INFO] TMX Finish Point found: {finish_rect}")
 
-            return physics_rects, visual_tiles, spawn_point, finish_rect, background_images
+            # Parse Enemy Spawns (New Object Layer)
+            enemy_spawns = []
+            
+            # Check all object groups
+            for obj_group in root.findall("objectgroup"):
+                # If specific layer 'Enemy' exists, use it
+                if obj_group.get("name") == "Enemy":
+                    for obj in obj_group.findall("object"):
+                        ename = obj.get("name")
+                        ex = float(obj.get("x"))
+                        ey = float(obj.get("y"))
+                        ew_x = ex * SCALE
+                        ew_y = ey * SCALE
+                        if ename:
+                            enemy_spawns.append((ename, ew_x, ew_y))
+                            print(f"[INFO] TMX Enemy spawn found: {ename} at ({ew_x}, {ew_y})")
+
+            return physics_rects, visual_tiles, spawn_point, finish_rect, background_images, enemy_spawns
             
         except Exception as e:
             print(f"[ERROR] Failed to load TMX: {e}")
             if 'physics_rects' in locals():
-                return physics_rects, visual_tiles, spawn_point, finish_rect, background_images
-            return [], [], (0,0), None, []
+                return physics_rects, visual_tiles, spawn_point, finish_rect, background_images, []
+            return [], [], (0,0), None, [], []
 
     def create_level(self):
         """Load current level from TMX file"""

@@ -9,7 +9,7 @@ PLAYER_ASSET_PATH = 'assets/graphics/player/'
 class Player(Entity): 
     def __init__(self, x, y):
         # STATS
-        stats_hp = 200
+        stats_hp = 10000
         stats_attack = 25
         stats_speed = 8
 
@@ -31,7 +31,7 @@ class Player(Entity):
         self.animation_types = [
             'idle', 'run', 'jump', 'fall', 
             'attack1', 'attack2', 'attack3', 
-            'death', 'hurt', 'hurt2',
+            'death', 'hurt', 
             'crouch', 'crouch_attack', 'dash',
             'spin_attack', 'sustain_arcane'
         ]
@@ -41,10 +41,7 @@ class Player(Entity):
         self.animator.load_custom_animation('spin_attack_effect', 64, 32)
         
         # Load Sustain Arcane Fire (72x32)
-        # Load Sustain Arcane Fire (72x32)
         self.animator.load_custom_animation('sustain_arcane_fire', 72, 32)
-        
-        self.audio_manager = None
 
         # SETUP SYSTEM
         self.combo_count = 1      
@@ -67,100 +64,27 @@ class Player(Entity):
         self.ARCANE_COOLDOWN = 3000 # ms
         self.last_arcane_time = 0
 
-    def take_damage(self, amount):
-        """Override take_damage untuk variasi animasi hurt"""
-        if not self.alive or self.is_invincible:
-            return
-
-        # Panggil logic parent untuk perhitungan HP & Invincibility
-        super().take_damage(amount)
-        
-        # Jika alive, pilih animasi hurt secara acak
-        if self.alive:
-            import random
-            self.state = random.choice(['hurt', 'hurt2'])
-            
-            # Reset frame agar animasi mulai dari awal
-            self.animator.frame_index = 0
-            self.animator.animation_finished = False
-            
-            print(f"[COMBAT] Player animation: {self.state}")
-
-    # ... (Skipping methods until get_status) ...
-
-    def get_status(self, x_velocity):
-        """State Machine"""
-        if not self.alive:
-            self.state = 'death'
-            return
-
-        # Prioritas 0: Dash
-        if self.is_dashing:
-            self.state = 'dash'
-            return
-
-        # Prioritas 0.5: Spin Attack & Sustain Arcane (Lock State)
-        if self.state == 'spin_attack' or self.state == 'sustain_arcane':
-            return
-
-        # Prioritas 1: Attack
-        if self.is_attacking:
-            # Jika sedang crouch attack, biarkan state-nya tetap 'crouch_attack'
-            if self.state == 'crouch_attack':
-                return
-            # Jika normal combo, update sesuai combo count
-            self.state = f'attack{self.combo_count}'
-            return
-        
-        # Prioritas 1.5: Hurt (Lock State selama invincibility/animasi)
-        if self.is_invincible and (self.state == 'hurt' or self.state == 'hurt2'): 
-            return
-
-        # Prioritas 2: Udara
-        if self.physics.velocity.y < 0:
-            self.state = 'jump'
-        elif self.physics.velocity.y > 1:
-            self.state = 'fall'
-
-        
-        # Prioritas 3: Tanah
-        else:
-            if self.is_crouching:
-                self.state = 'crouch'
-            elif x_velocity != 0: 
-                 self.state = 'run'
-            else: 
-                 self.state = 'idle'
-
     def update_timers(self):
         """Override Parent Timer Logic"""
         current_time = pg.time.get_ticks()
+        
+        # Check player stun (from enemy spells like BOD tornado)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            if current_time >= self.stun_end_time:
+                self.is_stunned = False
+                # Exit hurt state when stun ends
+                if self.state == 'hurt':
+                    self.state = 'idle'
+                print(f"[STUN] Player recovered from stun!")
+            else:
+                # Keep looping hurt animation during stun
+                if self.state == 'hurt' and self.animator.is_animation_finished():
+                    self.animator.reset_animation()  # Loop hurt animation
         
         # Cek Invincibility
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
-
-        # LOGIKA FOOTSTEP (Saat lari)
-        if self.state == 'run' and self.physics.on_ground:
-            # Trigger footstep pada frame tertentu (misal frame 1 dan 4)
-            # Frame index adalah float, jadi cek saat integer-nya berubah
-            current_frame_idx = int(self.animator.frame_index)
-            
-            # Kita butuh properti untuk simpan last frame agar tidak spawn suara berkali-kali di frame yang sama
-            if not hasattr(self, 'last_footstep_frame'):
-                self.last_footstep_frame = -1
-                
-            if current_frame_idx != self.last_footstep_frame:
-                # Asumsi animasi lari punya 6-8 frame. Trigger di frame 1 dan 4 agar ritmis
-                if current_frame_idx % 3 == 0: 
-                    if self.audio_manager:
-                        self.audio_manager.play_footstep()
-                
-                self.last_footstep_frame = current_frame_idx
-        else:
-            # Reset jika tidak lari
-            self.last_footstep_frame = -1
 
         # Cek Attack Selesai
         if self.is_attacking:
@@ -192,7 +116,15 @@ class Player(Entity):
     def get_input(self):
         """Mengambil input keyboard khusus Player"""
         if not self.alive: return 0
-
+        
+        # Disable input when hurt to ensure visual feedback
+        if self.state == 'hurt':
+            return 0
+        
+        # STUN CHECK - Block all input when stunned (e.g., from BOD spell)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return 0  # Completely frozen - no movement
+        
         keys = pg.key.get_pressed()
         x_velocity = 0
         
@@ -253,9 +185,21 @@ class Player(Entity):
 
     def attack(self):
         """Logika Serangan (Combo & Crouch Attack)"""
-        # Jangan menyerang jika sedang menyerang, dash, spin, arcane, atau mati
-        if self.is_attacking or self.is_dashing or self.state == 'spin_attack' or self.state == 'sustain_arcane' or not self.alive:
+        # Block if stunned (e.g., from BOD spell)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
             return
+        
+        # Jangan menyerang jika dash, spin, arcane, atau mati
+        if self.is_dashing or self.state == 'spin_attack' or self.state == 'sustain_arcane' or not self.alive:
+            return
+        
+        # Block if currently in middle of attack animation
+        # Only allow combo if previous attack is almost done or finished
+        if self.is_attacking and not self.animator.animation_finished:
+            # Check if we're in the last 30% of animation frames
+            # This allows chaining combos smoothly
+            if self.animator.frame_index < 5:  # Most attacks have 8-10 frames, allow chain at frame 5+
+                return
 
         current_time = pg.time.get_ticks()
         
@@ -264,15 +208,11 @@ class Player(Entity):
             self.is_attacking = True
             self.last_attack_time = current_time
             
-            # Reset animasi
             self.animator.frame_index = 0
             self.animator.animation_finished = False
             
             self.state = 'crouch_attack'
             print("[ACTION] Player performs Crouch Attack")
-            
-            if self.audio_manager:
-                self.audio_manager.play_sfx('attack1') # Use attack1 sfx for crouch attack
             return
 
         # LOGIKA NORMAL COMBO
@@ -294,12 +234,13 @@ class Player(Entity):
         
         self.state = f'attack{self.combo_count}' 
         print(f"[ACTION] Player Combo #{self.combo_count}")
-        
-        if self.audio_manager:
-            self.audio_manager.play_sfx(self.state)
 
     def spin_attack(self):
         """Memulai Spin Attack"""
+        # Block if stunned
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return
+        
         if not self.alive or self.state == 'spin_attack':
             return
 
@@ -313,12 +254,13 @@ class Player(Entity):
             self.animator.animation_finished = False
             
             print("[ACTION] Player performs Spin Attack!")
-            
-            if self.audio_manager:
-                self.audio_manager.play_sfx('spin_attack')
 
     def sustain_arcane(self):
         """Memulai Sustain Arcane Attack"""
+        # Block if stunned
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return
+        
         if not self.alive or self.state == 'sustain_arcane':
             return
 
@@ -332,18 +274,57 @@ class Player(Entity):
             self.animator.animation_finished = False
             
             print("[ACTION] Player performs Sustain Arcane!")
-            
-            if self.audio_manager:
-                self.audio_manager.play_sfx('sustain_arcane')
 
+    def get_status(self, x_velocity):
+        """State Machine"""
+        if not self.alive:
+            self.state = 'death'
+            return
 
+        # Prioritas 0: Dash
+        if self.is_dashing:
+            self.state = 'dash'
+            return
+
+        # Prioritas 0.5: Spin Attack & Sustain Arcane (Lock State)
+        if self.state == 'spin_attack' or self.state == 'sustain_arcane':
+            return
+
+        # Prioritas 1: Attack
+        if self.is_attacking:
+            # Jika sedang crouch attack, biarkan state-nya tetap 'crouch_attack'
+            if self.state == 'crouch_attack':
+                return
+            # Jika normal combo, update sesuai combo count
+            self.state = f'attack{self.combo_count}'
+            return
+        
+        if self.is_invincible and self.state == 'hurt': 
+            return
+
+        # Prioritas 2: Udara
+        if self.physics.velocity.y < 0:
+            self.state = 'jump'
+        elif self.physics.velocity.y > 1:
+            self.state = 'fall'
+        
+        # Prioritas 3: Tanah
+        else:
+            if self.is_crouching:
+                self.state = 'crouch'
+            elif x_velocity != 0: 
+                 self.state = 'run'
+            else: 
+                 self.state = 'idle'
 
     def jump(self):
+        # Block if stunned
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return
+        
         # Tidak bisa lompat saat crouch atau attack
         if self.alive and not self.is_attacking and not self.is_crouching and self.state != 'spin_attack' and self.state != 'sustain_arcane':
             self.physics.jump()
-            if self.audio_manager:
-                self.audio_manager.play_sfx('jump')
 
     def update(self, platforms):
         self.update_timers()
@@ -353,6 +334,9 @@ class Player(Entity):
             self.physics.update(platforms, x_vel)
         
         self.get_status(x_vel)
+        
+        # CRITICAL: Sync rect with physics
+        self.rect = self.physics.rect
 
     def draw(self, surface, camera_offset):
         current_frame = self.animator.animate(self.state, 0.1, self.physics.facing_right)
@@ -361,11 +345,12 @@ class Player(Entity):
             img_width = current_frame.get_width()
             img_height = current_frame.get_height()
             
-            offset_x = (img_width - self.rect.width) // 2
-            offset_y = img_height - self.rect.height
+            # Use physics.rect for accurate collision box position
+            offset_x = (img_width - self.physics.rect.width) // 2
+            offset_y = img_height - self.physics.rect.height
             
-            draw_pos_x = self.rect.x - camera_offset.x - offset_x
-            draw_pos_y = self.rect.y - camera_offset.y - offset_y
+            draw_pos_x = self.physics.rect.x - camera_offset.x - offset_x
+            draw_pos_y = self.physics.rect.y - camera_offset.y - offset_y
             
             surface.blit(current_frame, (draw_pos_x, draw_pos_y))
             
