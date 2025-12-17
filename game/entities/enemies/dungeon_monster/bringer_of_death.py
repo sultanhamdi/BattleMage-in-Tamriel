@@ -52,6 +52,10 @@ class BringerOfDeath(BaseEnemy):
         self.is_casting = False
         self.current_phase = 1
         
+        # Sprite anchor offset - character is positioned to the RIGHT in sprite canvas
+        # This compensates for the asymmetry when flipping facing direction
+        self.sprite_anchor_offset = 80  # Adjust this value as needed
+        
         self._setup_animations()
     
     def _setup_animations(self):
@@ -74,6 +78,15 @@ class BringerOfDeath(BaseEnemy):
         # Cooldown
         if self.spell_cooldown > 0:
             self.spell_cooldown -= 1
+        
+        # HURT ANIMATION FIX
+        # If in hurt state and animation finished, return to idle immediately
+        # This prevents the 3-frame animation from looping 3-4 times
+        if self.state == 'hurt' and self.animator.is_animation_finished():
+            self.state = self.STATE_IDLE
+            # Optional: Clear invincibility early if you want it to be vulnerable again? 
+            # self.invincibility_timer = 0
+
         
         # Check phase
         hp_ratio = self.current_hp / self.max_hp

@@ -55,10 +55,12 @@ class Skullwolf(BaseEnemy):
     
     def _setup_animations(self):
         """Load animasi Skullwolf."""
+        # Skullwolf uses attack animation for chase/pounce (jumping bite motion)
+        # This gives the predator a more aggressive visual while hunting
         animation_mapping = {
             'idle': 'idle',
-            'walk': 'idle',  # No walk, use idle
-            'chase': 'idle',  # Running uses idle (fast)
+            'walk': 'attack',    # Use attack sprite (pouncing motion)
+            'chase': 'attack',   # Use attack sprite for chasing
             'attack': 'attack',
             'hurt': 'hurt',
             'die': 'death',
@@ -67,18 +69,48 @@ class Skullwolf(BaseEnemy):
         self.animator.animation_speed = 0.14  # Fast animation
     
     def update(self, platforms):
-        """Update dengan hit-and-run behavior."""
-        # Cooldown
+        """Override update untuk menggunakan custom AI logic."""
+        # 1. Update Timers
+        self.update_timers()
+        
+        # 2. Cooldown
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
         
-        # Retreat counter
+        # 3. Retreat counter
         if self.retreat_counter > 0:
             self.retreat_counter -= 1
             if self.retreat_counter == 0:
                 self.is_retreating = False
         
-        super().update(platforms)
+        # 4. Handle hurt state - only during hurt animation, not full invincibility
+        # Check if currently in hurt state and animation finished
+        if self.state == 'hurt' and self.animator.is_animation_finished():
+            # Hurt animation done, can resume AI even if still invincible
+            self.state = 'idle'
+            self.ai_state = self.STATE_IDLE
+        
+        # 5. Run AI if not in hurt animation (but can be invincible)
+        if self.state != 'hurt' and self.alive:
+            # Use custom AI (not parent's update_ai_state/execute_ai_behavior)
+            self._update_ai()
+            
+            # Set visual state based on AI state
+            if self.ai_state in [self.STATE_CHASE, 'pounce', self.STATE_PATROL]:
+                self.state = 'walk'  # Will use attack animation due to mapping
+            elif self.ai_state == self.STATE_ATTACK:
+                self.state = 'attack'
+            elif self.ai_state == self.STATE_IDLE:
+                self.state = 'idle'
+        
+        # 5. Update Physics
+        if self.alive:
+            self.physics.update(platforms, self.physics.velocity_x, apply_gravity=self.has_gravity)
+        else:
+            self.physics.update(platforms, 0, apply_gravity=self.has_gravity)
+        
+        # 6. Sync rect
+        self.rect = self.physics.rect
     
     def _update_ai(self):
         """
@@ -87,11 +119,21 @@ class Skullwolf(BaseEnemy):
         if not self.alive or not self.player_ref:
             return
         
+        # Don't change state while attacking - wait for animation to finish
+        if self.is_attacking:
+            self.physics.velocity_x = 0
+            return
+        
         # Handle retreat phase
         if self.is_retreating:
             # Run away from player
             direction = -self.get_direction_to_player()
-            self.facing_right = self.get_direction_to_player() > 0  # Still face player
+            # Only update facing if X distance is significant (threshold 10px)
+            # This prevents rapid flipping when vertically aligned
+            dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
+            if abs(dx) > 10:
+                self.facing_right = dx > 0  # Still face player
+            
             self.physics.velocity_x = direction * self.pounce_speed
             return
         
@@ -113,17 +155,16 @@ class Skullwolf(BaseEnemy):
             self.ai_state = self.STATE_ATTACK
             self.do_attack()
             self.attack_cooldown = self.ATTACK_COOLDOWN
-            self.physics.velocity_x = 0
-            
-            # After attack, retreat
-            self.is_retreating = True
-            self.retreat_counter = 30  # Retreat for 30 frames
             
         elif distance <= self.POUNCE_RANGE:
             # In pounce range - RUSH!
             self.ai_state = 'pounce'
             direction = self.get_direction_to_player()
-            self.facing_right = direction > 0
+            # Only update facing if X distance is significant (threshold 10px)
+            dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
+            if abs(dx) > 10:
+                self.facing_right = dx < 0  # Sprite default faces LEFT, so invert
+            
             self.physics.velocity_x = direction * self.pounce_speed
             
         else:
@@ -131,13 +172,47 @@ class Skullwolf(BaseEnemy):
             self.ai_state = self.STATE_CHASE
             self.physics.velocity_x = self.do_chase()
     
+    def do_chase(self):
+        """Override chase with correct facing direction."""
+        direction = self.get_direction_to_player()
+        
+        # Only update facing if X distance is significant (threshold 10px)
+        # This prevents rapid flipping when vertically aligned
+        dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
+        if abs(dx) > 10:
+            # Sprite default faces LEFT, so invert: face left when moving right
+            self.facing_right = dx < 0
+            
+        return direction * self.movement_speed
+    
+    def do_patrol(self):
+        """Override patrol with correct facing direction."""
+        # Check patrol bounds
+        if self.rect.x > self.spawn_x + self.patrol_distance:
+            self.patrol_direction = -1  # Go left
+        elif self.rect.x < self.spawn_x - self.patrol_distance:
+            self.patrol_direction = 1   # Go right
+        
+        # Sprite default faces LEFT, so invert: face left when moving right
+        self.facing_right = self.patrol_direction < 0
+        return self.patrol_direction * self.patrol_speed
+    
     def do_attack(self):
         """Override attack - pounce attack."""
+        # Guard: only attack if not already attacking
+        if self.is_attacking:
+            return
+            
         super().do_attack()
         print(f"[SKULLWOLF] POUNCES!")
+        
         # Add forward momentum during attack
         direction = self.get_direction_to_player()
         self.physics.velocity_x = direction * self.movement_speed * 1.5
+        
+        # Schedule retreat after attack finishes (handled in update_timers)
+        self.is_retreating = True
+        self.retreat_counter = 30  # Retreat for 30 frames after attack animation
     
     def take_damage(self, amount):
         """Override take damage - agile, can dodge."""

@@ -13,6 +13,20 @@ from game.entities.enemies import (
     Golem, Guardian, IceSkeleton              # Ice Monsters
 )
 
+# Mapping nama enemy (dari TMX) ke class
+ENEMY_CLASSES = {
+    'DemonSlime': DemonSlime,
+    'BringerOfDeath': BringerOfDeath,
+    'Skullwolf': Skullwolf,
+    'FlyingEye': FlyingEye,
+    'Goblin': Goblin,
+    'Mushroom': Mushroom,
+    'Skeleton': Skeleton,
+    'Golem': Golem,
+    'Guardian': Guardian,
+    'IceSkeleton': IceSkeleton,
+}
+
 class Game:
     def __init__(self):
         pg.init()
@@ -28,7 +42,7 @@ class Game:
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects, Gambar, dan Spawn Point dari Map
-        self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+        self.platforms, self.visual_tiles, spawn_point, finish_rect, bg_images, self.enemy_spawns = self.level_manager.create_level()
         
         # Hitung Ukuran Level (World Size)
         max_x = 0
@@ -57,7 +71,8 @@ class Game:
         self.enemies = []
         self.player_hit_enemies = set()  # Track which enemies were hit in current attack
         self.enemy_hit_player = set()     # Track which enemies hit player in current attack
-        self.spawn_enemies()
+        self.last_player_attack_state = None  # Track attack state for combo reset
+        self.spawn_enemies(self.enemy_spawns)
         
         # Projectile System
         self.projectile_manager = ProjectileManager.get_instance()
@@ -72,22 +87,35 @@ class Game:
         self.fade_surface.fill((0, 0, 0))
         self.fade_state = 'IN'
 
-    def spawn_enemies(self):
+    def spawn_enemies(self, enemy_spawns=None):
         """
         Spawn enemies untuk level saat ini.
-        Konfigurasi spawn per level.
+        Prioritas: TMX enemy_spawns, fallback ke spawn_config.
         """
         # Clear existing enemies
         self.enemies = []
         self.player_hit_enemies.clear()
         self.enemy_hit_player.clear()
         
-        # Get current level index
+        # Prioritas 1: Spawn dari TMX enemy_spawns
+        if enemy_spawns:
+            for enemy_name, x, y in enemy_spawns:
+                EnemyClass = ENEMY_CLASSES.get(enemy_name)
+                if EnemyClass:
+                    enemy = EnemyClass(x, y)
+                    enemy.set_player_reference(self.player)
+                    self.enemies.append(enemy)
+                    print(f"[SPAWN] {enemy_name} at ({x}, {y})")
+                else:
+                    print(f"[WARNING] Unknown enemy class: {enemy_name}")
+            
+            print(f"[INFO] Total enemies spawned from TMX: {len(self.enemies)}")
+            return
+        
+        # Prioritas 2: Fallback ke spawn_config (backward compatibility)
         level_index = self.level_manager.current_level_index
         
-        # Enemy spawn configuration per level
-        # Format: [(EnemyClass, x, y), ...]
-        # Y positions should be on or near platforms (check TMX spawn point)
+        # Enemy spawn configuration per level (legacy)
         spawn_config = {
             0: [  # Level 1 - Dungeon Monsters
                 (DemonSlime, 800, 2150),
@@ -130,25 +158,82 @@ class Game:
             self.enemies.append(enemy)
             print(f"[SPAWN] {EnemyClass.__name__} at ({x}, {y})")
         
-        print(f"[INFO] Total enemies spawned: {len(self.enemies)}")
+        print(f"[INFO] Total enemies spawned (fallback): {len(self.enemies)}")
     
     def check_player_attack_collision(self):
         """Check if player's attack hits any enemies"""
-        if not self.player.is_attacking or not self.player.alive:
+        # Determine if player is in any attack state
+        attack_states = ['attack1', 'attack2', 'attack3', 'crouch_attack', 'spin_attack', 'sustain_arcane']
+        current_state = self.player.state
+        
+        is_attacking = self.player.is_attacking or current_state in ['spin_attack', 'sustain_arcane']
+        
+        if not is_attacking or not self.player.alive:
             # Reset tracking when not attacking
             self.player_hit_enemies.clear()
+            self.last_player_attack_state = None
             return
         
-        # Create attack hitbox based on player position and facing direction
-        attack_width = 60
-        attack_height = 70
+        # Check if attack state changed (e.g., attack1 -> attack2)
+        # This allows each combo hit to damage enemies separately
+        if current_state != self.last_player_attack_state:
+            self.player_hit_enemies.clear()
+            self.last_player_attack_state = current_state
         
-        if self.player.physics.facing_right:
-            attack_x = self.player.physics.rect.right
+        # Create attack hitbox based on attack type
+        # ACTIVE FRAME: Damage only applies when animation reaches the "impact" frames
+        current_frame = int(self.player.animator.frame_index)
+        
+        if current_state == 'spin_attack':
+            # Spin attack: 360-degree AOE around player (active from frame 2)
+            if current_frame < 2:
+                return  # Not yet swinging
+            attack_width = 100
+            attack_height = 80
+            attack_x = self.player.physics.rect.centerx - attack_width // 2
+            attack_y = self.player.physics.rect.centery - attack_height // 2
+            damage = int(self.player.attack_power * 1.5)  # 50% more damage
+            
+        elif current_state == 'sustain_arcane':
+            # Sustain Arcane: Long range fire attack (active from frame 3)
+            if current_frame < 3:
+                return  # Channeling
+            attack_width = 120
+            attack_height = 50
+            if self.player.physics.facing_right:
+                attack_x = self.player.physics.rect.right + 8
+            else:
+                attack_x = self.player.physics.rect.left - attack_width - 8
+            attack_y = self.player.physics.rect.centery - attack_height // 2 - 10
+            damage = int(self.player.attack_power * 0.8)  # Per-frame damage (lower)
+            
+        elif current_state == 'crouch_attack':
+            # Crouch attack: Lower hitbox (active from frame 2)
+            if current_frame < 2:
+                return  # Winding up
+            attack_width = 50
+            attack_height = 40
+            if self.player.physics.facing_right:
+                attack_x = self.player.physics.rect.right
+            else:
+                attack_x = self.player.physics.rect.left - attack_width
+            attack_y = self.player.physics.rect.bottom - attack_height
+            damage = self.player.attack_power
+            
         else:
-            attack_x = self.player.physics.rect.left - attack_width
+            # Normal combo attacks (attack1, attack2, attack3)
+            # Active from frame 3 - when sword is actually swinging
+            if current_frame < 3:
+                return  # Sword not yet in swing arc
+            attack_width = 60
+            attack_height = 70
+            if self.player.physics.facing_right:
+                attack_x = self.player.physics.rect.right
+            else:
+                attack_x = self.player.physics.rect.left - attack_width
+            attack_y = self.player.physics.rect.centery - attack_height // 2
+            damage = self.player.attack_power
         
-        attack_y = self.player.physics.rect.centery - attack_height // 2
         attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
         
         # Check collision with all enemies
@@ -156,13 +241,20 @@ class Game:
             if not enemy.alive:
                 continue
             
-            # Skip if already hit in this attack
-            if id(enemy) in self.player_hit_enemies:
+            # Skip if already hit in this attack (except sustain_arcane which can hit multiple times)
+            if current_state != 'sustain_arcane' and id(enemy) in self.player_hit_enemies:
                 continue
+            
+            # For sustain_arcane, add a frame-based cooldown per enemy
+            if current_state == 'sustain_arcane':
+                # Only hit every few frames to prevent instant kill
+                frame_idx = int(self.player.animator.frame_index)
+                if frame_idx % 5 != 0:  # Hit every 5 frames
+                    continue
             
             # Check if attack hitbox overlaps enemy
             if attack_rect.colliderect(enemy.physics.rect):
-                enemy.take_damage(self.player.attack_power)
+                enemy.take_damage(damage)
                 self.player_hit_enemies.add(id(enemy))
                 print(f"[HIT] Player hits {type(enemy).__name__}! ({enemy.current_hp}/{enemy.max_hp} HP)")
     
@@ -182,13 +274,16 @@ class Game:
                 continue
             
             # Create attack hitbox for enemy
-            attack_width = 50
+            # Hitbox extends from enemy center outward to catch overlapping targets
+            attack_width = 70
             attack_height = 60
             
+            # Start from center of enemy, extend in facing direction
+            # This ensures hits when player overlaps with enemy
             if enemy.facing_right:
-                attack_x = enemy.physics.rect.right
+                attack_x = enemy.physics.rect.centerx - 20  # Start slightly behind center
             else:
-                attack_x = enemy.physics.rect.left - attack_width
+                attack_x = enemy.physics.rect.centerx - attack_width + 20  # Start slightly behind center
             
             attack_y = enemy.physics.rect.centery - attack_height // 2
             attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
@@ -285,7 +380,7 @@ class Game:
             self.level_manager.set_level(next_level_index)
             
             # Re-Generate Level
-            self.platforms, self.visual_tiles, spawn_point, finish_rect = self.level_manager.create_level()
+            self.platforms, self.visual_tiles, spawn_point, finish_rect, bg_images, self.enemy_spawns = self.level_manager.create_level()
             self.finish_rect = finish_rect
             
             # Re-Calculate Background Size
@@ -306,7 +401,7 @@ class Game:
             self.background = self.level_manager.create_world_background(level_width, level_height)
             
             # Re-spawn enemies for new level
-            self.spawn_enemies()
+            self.spawn_enemies(self.enemy_spawns)
             
             # Clear projectiles from previous level
             self.projectile_manager.clear()

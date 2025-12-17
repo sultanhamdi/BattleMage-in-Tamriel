@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="35" height="80" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="3">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="35" height="80" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="19">
  <tileset firstgid="1" source="dungeon.tsx"/>
  <tileset firstgid="141" source="snow.tsx"/>
  <imagelayer id="3" name="Background" repeatx="1" repeaty="1">
@@ -92,5 +92,18 @@
  <objectgroup id="2" name="Object Layer 1">
   <object id="1" name="P" x="28" y="1207.5"/>
   <object id="2" name="F" x="537.143" y="45.7143"/>
+ </objectgroup>
+ <objectgroup id="4" name="Enemy">
+  <object id="3" name="Skullwolf" x="518" y="1116"/>
+  <object id="4" name="Skullwolf" x="318" y="940.667"/>
+  <object id="5" name="Skullwolf" x="86" y="840"/>
+  <object id="6" name="Skullwolf" x="184" y="875.333"/>
+  <object id="7" name="Skullwolf" x="355.333" y="1204.67"/>
+  <object id="8" name="Skullwolf" x="110" y="1206.67"/>
+  <object id="9" name="BringerOfDeath" x="258.667" y="598.667"/>
+  <object id="10" name="BringerOfDeath" x="229.333" y="322.667"/>
+  <object id="14" name="DemonSlime" x="240.667" y="1201.33"/>
+  <object id="17" name="Skullwolf" x="363.333" y="586.667"/>
+  <object id="18" name="Skullwolf" x="308" y="330"/>
  </objectgroup>
 </map>

@@ -81,6 +81,12 @@ class BaseEnemy(Entity):
         
         # 8. GRAVITY FLAG (child class bisa disable untuk flying)
         self.has_gravity = True  # Most enemies need gravity
+        
+        # 9. SPRITE ANCHOR OFFSET (for asymmetric sprites)
+        # Positive value = sprite character is offset to the RIGHT in the canvas
+        # When flipping, this offset will be inverted to prevent "jumping"
+        # Child classes can override this for sprites that aren't centered
+        self.sprite_anchor_offset = 0
 
     # ===========================================
     # SECTION: AI LOGIC (State Machine)
@@ -335,6 +341,14 @@ class BaseEnemy(Entity):
             # Hitung offset agar gambar pas di tengah hitbox
             offset_x = (img_width - self.physics.rect.width) // 2
             offset_y = img_height - self.physics.rect.height
+            
+            # Apply sprite anchor offset for asymmetric sprites
+            # When facing left (flipped), invert the anchor offset
+            if self.sprite_anchor_offset != 0:
+                if self.facing_right:
+                    offset_x += self.sprite_anchor_offset
+                else:
+                    offset_x -= self.sprite_anchor_offset
             
             draw_pos_x = self.physics.rect.x - camera_offset.x - offset_x
             draw_pos_y = self.physics.rect.y - camera_offset.y - offset_y
