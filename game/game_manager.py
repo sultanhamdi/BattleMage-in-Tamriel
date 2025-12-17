@@ -5,6 +5,7 @@ from game.entities.player import Player
 from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
 from game.items.item_manager import ItemManager
+from game.screens.item_selection_screen import ItemSelectionScreen
 
 class Game:
     def __init__(self):
@@ -62,6 +63,7 @@ class Game:
         self.awaiting_item_selection = False
         self.current_item_choices = []  # [item_id, item_id]
         self.selected_item_index = 0    # For UI navigation (0 or 1)
+        self.item_selection_screen = ItemSelectionScreen(self.screen, WINDOW_WIDTH, WINDOW_HEIGHT)
 
     def events(self):
         for event in pg.event.get():
@@ -201,7 +203,33 @@ class Game:
             self.level_manager.set_level(0)
             self.change_level()
 
+            self.draw()
+            self.clock.tick(FPS)
+
+
+
     def draw(self):
+        # Draw Item Selection Overlay if active
+        if self.awaiting_item_selection:
+            # We still want to draw the game in background potentially
+            # Draw Void Background
+            if self.void_image:
+                 tile_w = self.void_image.get_width()
+                 tile_h = self.void_image.get_height()
+                 start_x = -int(self.camera.offset.x) % tile_w
+                 start_y = -int(self.camera.offset.y) % tile_h
+                 for x in range(start_x - tile_w, WINDOW_WIDTH + tile_w, tile_w):
+                     for y in range(start_y - tile_h, WINDOW_HEIGHT + tile_h, tile_h):
+                         self.screen.blit(self.void_image, (x, y))
+            else:
+                self.screen.fill(BG_COLOR)
+             
+            # Draw UI using Screen Class
+            self.item_selection_screen.render(self.item_manager, self.current_item_choices, self.selected_item_index)
+            pg.display.flip()
+            return
+
+        # Normal Game Drawing
         # Draw Void Background (Infinite Wall)
         if self.void_image:
             # Hitung offset tile agar seamless

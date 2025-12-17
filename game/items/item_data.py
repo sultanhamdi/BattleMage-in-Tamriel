@@ -9,43 +9,44 @@ class ItemType(Enum):
 
 # Item Definitions
 # Each item has: id, name, type, icon, description, effects (dict of stat modifiers)
+# Description is now FLAVOR text, as stats are auto-displayed by the UI.
 ITEMS = {
     # ========== ATTACK ITEMS (4) ==========
     "arcane_gauntlet": {
         "name": "Arcane Gauntlet",
         "type": ItemType.ATTACK,
         "icon": "arcane_gauntlet.png",
-        "description": "+10 Attack Power",
+        "description": "Glove pulsating with raw magic.",
         "effects": {
-            "attack_power": 10  # Flat bonus
+            "attack_power": 10
         }
     },
     "fury_rune": {
         "name": "Fury Rune",
         "type": ItemType.ATTACK,
         "icon": "fury_rune.png",
-        "description": "+5 Attack, -10% Spin Cooldown",
+        "description": "Anger fuels your spells.",
         "effects": {
             "attack_power": 5,
-            "SPIN_COOLDOWN_MULT": 0.9  # Multiplier (90% = -10%)
+            "SPIN_COOLDOWN_MULT": 0.9
         }
     },
     "combo_master_tome": {
         "name": "Combo Master Tome",
         "type": ItemType.ATTACK,
         "icon": "combo_master_tome.png",
-        "description": "+300ms Combo Window",
+        "description": "Ancient techniques for fluid combat.",
         "effects": {
-            "combo_window": 300  # Flat bonus in ms
+            "combo_window": 300
         }
     },
     "swift_blade": {
         "name": "Swift Blade",
         "type": ItemType.ATTACK,
         "icon": "swift_blade.png",
-        "description": "-100ms Attack Cooldown",
+        "description": "Strike faster than the eye can see.",
         "effects": {
-            "attack_cooldown": -100  # Flat reduction in ms
+            "attack_cooldown": -100
         }
     },
 
@@ -54,16 +55,16 @@ ITEMS = {
         "name": "Life Crystal",
         "type": ItemType.DEFENSE,
         "icon": "life_crystal.png",
-        "description": "+25 Max HP",
+        "description": "Radiates a soothing aura.",
         "effects": {
-            "max_hp": 25  # Flat bonus
+            "max_hp": 25
         }
     },
     "guardian_amulet": {
         "name": "Guardian Amulet",
         "type": ItemType.DEFENSE,
         "icon": "guardian_amulet.png",
-        "description": "+50 Max HP, -1 Speed",
+        "description": "Heavy protection at a cost.",
         "effects": {
             "max_hp": 50,
             "movement_speed": -1
@@ -73,9 +74,9 @@ ITEMS = {
         "name": "Phase Cloak",
         "type": ItemType.DEFENSE,
         "icon": "phase_cloak.png",
-        "description": "+500ms Invincibility Duration",
+        "description": "Stay in the ethereal plane longer.",
         "effects": {
-            "invincibility_duration": 500  # Flat bonus in ms
+            "invincibility_duration": 500
         }
     },
 
@@ -84,16 +85,16 @@ ITEMS = {
         "name": "Wind Boots",
         "type": ItemType.MOBILITY,
         "icon": "wind_boots.png",
-        "description": "+2 Movement Speed",
+        "description": "Walk on air.",
         "effects": {
-            "movement_speed": 2  # Flat bonus
+            "movement_speed": 2
         }
     },
     "dash_enhancer": {
         "name": "Dash Enhancer",
         "type": ItemType.MOBILITY,
         "icon": "dash_enhancer.png",
-        "description": "+5 Dash Speed, +50ms Dash Duration",
+        "description": "Improved dash mechanics.",
         "effects": {
             "DASH_SPEED": 5,
             "DASH_DURATION": 50
@@ -103,18 +104,18 @@ ITEMS = {
         "name": "Flash Step",
         "type": ItemType.MOBILITY,
         "icon": "flash_step.png",
-        "description": "-300ms Dash Cooldown",
+        "description": "Blink through existence.",
         "effects": {
-            "DASH_COOLDOWN": -300  # Flat reduction
+            "DASH_COOLDOWN": -300
         }
     },
     "featherfall_cape": {
         "name": "Featherfall Cape",
         "type": ItemType.MOBILITY,
         "icon": "featherfall_cape.png",
-        "description": "-15% Gravity",
+        "description": "Defy gravity.",
         "effects": {
-            "GRAVITY_MULT": 0.85  # Multiplier
+            "GRAVITY_MULT": 0.85
         }
     },
 
@@ -123,25 +124,25 @@ ITEMS = {
         "name": "Arcane Accelerator",
         "type": ItemType.COOLDOWN,
         "icon": "arcane_accelerator.png",
-        "description": "-500ms Arcane Cooldown",
+        "description": "Channel magic faster.",
         "effects": {
-            "ARCANE_COOLDOWN": -500  # Flat reduction
+            "ARCANE_COOLDOWN": -500
         }
     },
     "whirlwind_catalyst": {
         "name": "Whirlwind Catalyst",
         "type": ItemType.COOLDOWN,
         "icon": "whirlwind_catalyst.png",
-        "description": "-400ms Spin Cooldown",
+        "description": "Keep spinning.",
         "effects": {
-            "SPIN_COOLDOWN": -400  # Flat reduction
+            "SPIN_COOLDOWN": -400
         }
     },
     "chrono_shard": {
         "name": "Chrono Shard",
         "type": ItemType.COOLDOWN,
         "icon": "chrono_shard.png",
-        "description": "-15% ALL Cooldowns",
+        "description": "Time bends around you.",
         "effects": {
             "DASH_COOLDOWN_MULT": 0.85,
             "SPIN_COOLDOWN_MULT": 0.85,

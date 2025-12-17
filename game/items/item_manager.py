@@ -96,3 +96,7 @@ class ItemManager:
     def get_collected_count(self):
         """Get number of items player has collected"""
         return len(self.collected_items)
+
+    def get_item_info(self, item_id):
+        """Get item details by ID"""
+        return ITEMS.get(item_id)
