@@ -152,6 +152,9 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
+ <objectgroup id="2" name="Object Layer 1">
+  <object id="1" name="P" x="1409" y="267"/>
+ </objectgroup>
  <objectgroup id="5" name="Enemy">
   <object id="2" name="Mushroom" x="1264" y="245.333"/>
   <object id="3" name="Mushroom" x="298.667" y="502.667"/>
@@ -167,8 +170,5 @@
   <object id="15" name="BringerOfDeath" x="628" y="1022.67"/>
   <object id="16" name="DemonSlime" x="833.333" y="1026.67"/>
   <object id="17" name="Guardian" x="1142.67" y="1028"/>
- </objectgroup>
- <objectgroup id="2" name="Object Layer 1">
-  <object id="1" name="P" x="1409" y="267"/>
  </objectgroup>
 </map>

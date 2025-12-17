@@ -4,6 +4,7 @@ from game.settings import *
 from game.entities.player import Player
 from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
+from game.items.item_manager import ItemManager
 
 class Game:
     def __init__(self):
@@ -55,6 +56,12 @@ class Game:
         self.fade_surface = pg.Surface(WINDOW_SIZE)
         self.fade_surface.fill((0, 0, 0))
         self.fade_state = 'IN'
+        
+        # Item System
+        self.item_manager = ItemManager()
+        self.awaiting_item_selection = False
+        self.current_item_choices = []  # [item_id, item_id]
+        self.selected_item_index = 0    # For UI navigation (0 or 1)
 
     def events(self):
         for event in pg.event.get():
@@ -64,6 +71,20 @@ class Game:
                 sys.exit()
             
             if event.type == pg.KEYDOWN:
+                # Handle Item Selection Input (Block other inputs)
+                if self.awaiting_item_selection:
+                    if event.key == pg.K_LEFT:
+                        self.selected_item_index = 0
+                    elif event.key == pg.K_RIGHT:
+                        self.selected_item_index = 1
+                    elif event.key == pg.K_1:
+                        self.confirm_item_selection(0)
+                    elif event.key == pg.K_2:
+                        self.confirm_item_selection(1)
+                    elif event.key == pg.K_RETURN or event.key == pg.K_SPACE:
+                        self.confirm_item_selection(self.selected_item_index)
+                    continue  # Block other inputs during item selection
+                
                 if event.key == pg.K_F4:
                     is_fullscreen = self.screen.get_flags() & pg.FULLSCREEN
                     if is_fullscreen:
@@ -80,6 +101,21 @@ class Game:
                         print("[CHEAT] Skipping level...")
                         self.transitioning = True
                         self.fade_state = 'OUT'
+    
+    def confirm_item_selection(self, index):
+        """Player confirms item selection"""
+        if index < len(self.current_item_choices):
+            item_id = self.current_item_choices[index]
+            
+            # Pick and apply item
+            self.item_manager.pick_item(item_id)
+            self.item_manager.apply_item_to_player(self.player, item_id)
+            
+            # Clear selection state
+            self.awaiting_item_selection = False
+            self.current_item_choices = []
+            
+            print(f"[ITEM] Applied: {item_id}")
 
     def update(self):
         # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
@@ -117,6 +153,14 @@ class Game:
         # Cek apakah level selanjutnya ada
         if next_level_index < len(self.level_manager.levels):
             print(f"[INFO] Loading Level {next_level_index + 1}...")
+            
+            # Trigger Item Selection (if items available)
+            if self.item_manager.get_pool_size() >= 2:
+                self.current_item_choices = self.item_manager.get_random_choices(2)
+                self.awaiting_item_selection = True
+                self.selected_item_index = 0
+                print(f"[ITEM] Choose: {self.current_item_choices}")
+            
             self.level_manager.set_level(next_level_index)
             
             # Re-Generate Level

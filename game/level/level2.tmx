@@ -58,6 +58,10 @@
 88,89,90,89,90,88,89,90,89,90,89,90,89,90,89,90,89,90,88,89,90,89,90,88,89,90,88,89,90,88,89,90,89,90,89,90,89,90,88,89,90,88,89,90,88,89,90,88,89,90,88,88,89,90
 </data>
  </layer>
+ <objectgroup id="2" name="Object Layer 1">
+  <object id="1" name="P" x="26" y="502.667"/>
+  <object id="2" name="F" x="837.333" y="172.667"/>
+ </objectgroup>
  <objectgroup id="4" name="Enemy">
   <object id="3" name="Skullwolf" x="97" y="736"/>
   <object id="5" name="Skullwolf" x="198" y="734"/>
@@ -68,9 +72,5 @@
   <object id="10" name="Skullwolf" x="601" y="449"/>
   <object id="11" name="Skullwolf" x="526" y="299"/>
   <object id="12" name="BringerOfDeath" x="283" y="288"/>
- </objectgroup>
- <objectgroup id="2" name="Object Layer 1">
-  <object id="1" name="P" x="26" y="502.667"/>
-  <object id="2" name="F" x="837.333" y="172.667"/>
  </objectgroup>
 </map>
