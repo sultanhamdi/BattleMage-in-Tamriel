@@ -6,6 +6,7 @@ from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
 from game.items.item_manager import ItemManager
 from game.screens.item_selection_screen import ItemSelectionScreen
+from game.ui.hud import HUD
 from game.utils.audio.audio_manager import AudioManager
 
 class Game:
@@ -55,6 +56,9 @@ class Game:
         # Spawn player
         self.player = Player(spawn_point[0], spawn_point[1])
         self.player.audio_manager = self.audio_manager
+        
+        # HUD
+        self.hud = HUD(self.screen, self.player)
         
         # Level Transition
         # self.finish_rect is already set during load_level
@@ -130,6 +134,7 @@ class Game:
         if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
             self.player.update(self.platforms)
             self.camera.follow(self.player.rect)
+            self.hud.update()
         
         # Cek Finish Point Trigger
         if self.finish_rect and not self.transitioning:
@@ -297,6 +302,9 @@ class Game:
 
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
+        
+        # Draw HUD
+        self.hud.draw()
         
         # Draw Fade Overlay
         if self.transitioning or self.fade_alpha > 0:

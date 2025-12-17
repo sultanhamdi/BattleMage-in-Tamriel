@@ -9,7 +9,7 @@ PLAYER_ASSET_PATH = 'assets/graphics/player/'
 class Player(Entity): 
     def __init__(self, x, y):
         # STATS
-        stats_hp = 100
+        stats_hp = 200
         stats_attack = 25
         stats_speed = 8
 
