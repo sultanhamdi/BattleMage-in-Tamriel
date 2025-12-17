@@ -31,7 +31,7 @@ class Player(Entity):
         self.animation_types = [
             'idle', 'run', 'jump', 'fall', 
             'attack1', 'attack2', 'attack3', 
-            'death', 'hurt', 
+            'death', 'hurt', 'hurt2',
             'crouch', 'crouch_attack', 'dash',
             'spin_attack', 'sustain_arcane'
         ]
@@ -63,6 +63,71 @@ class Player(Entity):
         # SUSTAIN ARCANE SYSTEM
         self.ARCANE_COOLDOWN = 3000 # ms
         self.last_arcane_time = 0
+
+    def take_damage(self, amount):
+        """Override take_damage untuk variasi animasi hurt"""
+        if not self.alive or self.is_invincible:
+            return
+
+        # Panggil logic parent untuk perhitungan HP & Invincibility
+        super().take_damage(amount)
+        
+        # Jika alive, pilih animasi hurt secara acak
+        if self.alive:
+            import random
+            self.state = random.choice(['hurt', 'hurt2'])
+            
+            # Reset frame agar animasi mulai dari awal
+            self.animator.frame_index = 0
+            self.animator.animation_finished = False
+            
+            print(f"[COMBAT] Player animation: {self.state}")
+
+    # ... (Skipping methods until get_status) ...
+
+    def get_status(self, x_velocity):
+        """State Machine"""
+        if not self.alive:
+            self.state = 'death'
+            return
+
+        # Prioritas 0: Dash
+        if self.is_dashing:
+            self.state = 'dash'
+            return
+
+        # Prioritas 0.5: Spin Attack & Sustain Arcane (Lock State)
+        if self.state == 'spin_attack' or self.state == 'sustain_arcane':
+            return
+
+        # Prioritas 1: Attack
+        if self.is_attacking:
+            # Jika sedang crouch attack, biarkan state-nya tetap 'crouch_attack'
+            if self.state == 'crouch_attack':
+                return
+            # Jika normal combo, update sesuai combo count
+            self.state = f'attack{self.combo_count}'
+            return
+        
+        # Prioritas 1.5: Hurt (Lock State selama invincibility/animasi)
+        if self.is_invincible and (self.state == 'hurt' or self.state == 'hurt2'): 
+            return
+
+        # Prioritas 2: Udara
+        if self.physics.velocity.y < 0:
+            self.state = 'jump'
+        elif self.physics.velocity.y > 1:
+            self.state = 'fall'
+
+        
+        # Prioritas 3: Tanah
+        else:
+            if self.is_crouching:
+                self.state = 'crouch'
+            elif x_velocity != 0: 
+                 self.state = 'run'
+            else: 
+                 self.state = 'idle'
 
     def update_timers(self):
         """Override Parent Timer Logic"""
@@ -235,47 +300,7 @@ class Player(Entity):
             
             print("[ACTION] Player performs Sustain Arcane!")
 
-    def get_status(self, x_velocity):
-        """State Machine"""
-        if not self.alive:
-            self.state = 'death'
-            return
 
-        # Prioritas 0: Dash
-        if self.is_dashing:
-            self.state = 'dash'
-            return
-
-        # Prioritas 0.5: Spin Attack & Sustain Arcane (Lock State)
-        if self.state == 'spin_attack' or self.state == 'sustain_arcane':
-            return
-
-        # Prioritas 1: Attack
-        if self.is_attacking:
-            # Jika sedang crouch attack, biarkan state-nya tetap 'crouch_attack'
-            if self.state == 'crouch_attack':
-                return
-            # Jika normal combo, update sesuai combo count
-            self.state = f'attack{self.combo_count}'
-            return
-        
-        if self.is_invincible and self.state == 'hurt': 
-            return
-
-        # Prioritas 2: Udara
-        if self.physics.velocity.y < 0:
-            self.state = 'jump'
-        elif self.physics.velocity.y > 1:
-            self.state = 'fall'
-        
-        # Prioritas 3: Tanah
-        else:
-            if self.is_crouching:
-                self.state = 'crouch'
-            elif x_velocity != 0: 
-                 self.state = 'run'
-            else: 
-                 self.state = 'idle'
 
     def jump(self):
         # Tidak bisa lompat saat crouch atau attack
