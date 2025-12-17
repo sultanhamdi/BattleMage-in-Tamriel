@@ -439,9 +439,24 @@ class TestWorld:
             font_small = pg.font.Font(None, 20)
             if self.game.enemies:
                 for i, enemy in enumerate(self.game.enemies[:15], 1):  # Max 15 to prevent overflow
-                    status = "ALIVE" if enemy.alive else "DEAD"
-                    color = (100, 255, 100) if enemy.alive else (255, 100, 100)
-                    enemy_info = f"{i}. {type(enemy).__name__} - {status}"
+                    # Show detailed state instead of just ALIVE/DEAD
+                    state = enemy.state.upper() if hasattr(enemy, 'state') else 'UNK'
+                    is_atk = "ATK" if enemy.is_attacking else ""
+                    frame = int(enemy.animator.frame_index) if hasattr(enemy.animator, 'frame_index') else 0
+                    
+                    # Color based on state
+                    if state == 'ATTACK':
+                        color = (255, 255, 100)  # Yellow for attacking
+                    elif state == 'HURT':
+                        color = (255, 150, 150)  # Light red for hurt
+                    elif state in ['DIE', 'DEATH']:
+                        color = (255, 100, 100)  # Red for dead
+                    elif state == 'WALK' or state == 'CHASE':
+                        color = (100, 255, 255)  # Cyan for moving
+                    else:
+                        color = (200, 200, 200)  # Gray for idle
+                    
+                    enemy_info = f"{i}. {type(enemy).__name__}: {state} {is_atk} F:{frame}"
                     surf = font_small.render(enemy_info, True, color)
                     self.screen.blit(surf, (25, y_offset))
                     y_offset += 22

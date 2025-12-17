@@ -278,7 +278,6 @@ class BaseEnemy(Entity):
             self.last_attack_time = pg.time.get_ticks()
             self.state = 'attack'
             self.animator.reset_animation()
-            print(f"[ACTION] {type(self).__name__} Attacks!")
     
     # ===========================================
     # SECTION: UPDATE & DRAW (Override Entity)

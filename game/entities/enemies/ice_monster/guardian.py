@@ -46,8 +46,10 @@ class Guardian(BaseEnemy):
         
         # Combat ranges
         self.detection_range = 400
-        # FIX RANGE: Match spear reach (150)
-        self.attack_range = 120
+        # FIX DELAY: attack_range must be smaller so attack_box REACHES player
+        # Demon Slime: range=150, box=180. Ratio ~0.83
+        # Guardian: box=150, so range should be ~125 -> 80 for safety
+        self.attack_range = 80
         self.lose_interest_range = 550
         
         # Custom Attack Box for long spear
@@ -73,7 +75,7 @@ class Guardian(BaseEnemy):
             'die': 'death',
         }
         self.animator.load_sprites(animation_mapping)
-        self.animator.animation_speed = 0.14  # Faster combat feel
+        self.animator.animation_speed = 0.15  # Match Demon Slime for consistent timing
     
     def update(self, platforms):
         """Update with EXACT GOBLIN PATTERN (PROVEN WORKING)."""

@@ -281,6 +281,12 @@ class Game:
             if not enemy.alive or not enemy.is_attacking:
                 # Reset tracking when not attacking
                 self.enemy_hit_player.discard(id(enemy))
+                # FIX: Also reset the attack time tracking so next attack is treated as NEW
+                if hasattr(self, 'enemy_last_attack_times') and id(enemy) in self.enemy_last_attack_times:
+                    del self.enemy_last_attack_times[id(enemy)]
+                    # DEBUG: Log when tracking is reset for Golem
+                    if type(enemy).__name__ == 'Golem':
+                        print(f"[GOLEM RESET] is_attacking={enemy.is_attacking} state={enemy.state} - Tracking CLEARED")
                 continue
             
             # NEW: Track when each enemy starts a new attack
@@ -331,11 +337,17 @@ class Game:
                         continue
                     # Use custom attack box (already set via attack_box_width/height)
             
-            # Grass Monsters (8 frames total): attack, attack2
-            elif type(enemy).__name__ in ['FlyingEye', 'Goblin', 'Mushroom', 'Skeleton']:
+            # Grass Monsters - Different thresholds per enemy
+            elif type(enemy).__name__ in ['FlyingEye', 'Goblin']:
                 if enemy.state in ['attack', 'attack2']:
-                    # 8 frames: hit at frame 4 (mid-swing)
+                    # 8 frames: hit at frame 4 (mid-swing) - OK
                     if current_frame < 4:
+                       continue
+            
+            elif type(enemy).__name__ in ['Mushroom', 'Skeleton']:
+                if enemy.state in ['attack', 'attack2']:
+                    # User feedback: slightly early, increase to frame 5
+                    if current_frame < 5:
                        continue
                 elif enemy.state == 'shield':  # Skeleton only
                     continue
@@ -351,16 +363,20 @@ class Game:
             # Golem (11 frames total)
             elif type(enemy).__name__ == 'Golem':
                 if enemy.state == 'attack':
-                    # Frame 2 for fastest response
-                    if current_frame < 2:
+                    # Asset: 004 = visual impact at frame 4 (Increased to 6 for delay)
+                    if current_frame < 6:
                         continue
+                else:
+                    continue
             
             # Guardian (14 frames total)
             elif type(enemy).__name__ == 'Guardian':
                 if enemy.state == 'attack':
-                    # User feedback: still delayed, reduce to frame 2
-                    if current_frame < 2:
+                    # Asset: 1_atk_6 = visual impact at frame 6 (Increased to 11 for delay)
+                    if current_frame < 11:
                         continue
+                else:
+                    continue
             
             # Skullwolf (5 frames total) - keep default
             elif type(enemy).__name__ == 'Skullwolf':

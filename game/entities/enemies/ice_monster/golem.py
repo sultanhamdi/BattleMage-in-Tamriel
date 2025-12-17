@@ -47,8 +47,10 @@ class Golem(BaseEnemy):
         
         # Combat ranges
         self.detection_range = 350
-        # BENCHMARK: Match Guardian's attack_range (120) which works without bounce
-        self.attack_range = 120 
+        # FIX DELAY: attack_range must be smaller so attack_box REACHES player
+        # Demon Slime: range=150, box=180. Ratio ~0.83
+        # Golem: box=150, so range should be ~125 -> 80 for safety
+        self.attack_range = 80 
         self.lose_interest_range = 500
         
         # Tank mechanics
@@ -77,7 +79,7 @@ class Golem(BaseEnemy):
             'die': 'death',
         }
         self.animator.load_sprites(animation_mapping)
-        self.animator.animation_speed = 0.11  # Faster but still heavy (was 0.08)
+        self.animator.animation_speed = 0.15  # Match Demon Slime for consistent timing
     
     def update(self, platforms):
         """Update with EXACT GOBLIN PATTERN (PROVEN WORKING)."""
@@ -166,13 +168,11 @@ class Golem(BaseEnemy):
             return
             
         if distance <= self.attack_range:
-            # In attack range - ALWAYS stop (even during cooldown)
-            self.physics.velocity_x = 0
+            # SIMPLIFIED: Match Demon Slime pattern exactly
             self.ai_state = self.STATE_ATTACK
-            # Only actually attack if cooldown finished
-            if self.slam_cooldown <= 0 and not self.is_attacking:
+            if not self.is_attacking:
                 self.do_attack()
-                self.slam_cooldown = self.SLAM_COOLDOWN
+            self.physics.velocity_x = 0
             return
             
         # Default - chase
