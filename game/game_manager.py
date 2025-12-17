@@ -6,6 +6,7 @@ from game.utils.camera import Camera
 from game.level.level_manager import LevelManager
 from game.items.item_manager import ItemManager
 from game.screens.item_selection_screen import ItemSelectionScreen
+from game.utils.audio.audio_manager import AudioManager
 
 class Game:
     def __init__(self):
@@ -15,14 +16,19 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         
-        # Inisialisasi Kamera
+        # Managers
+        self.level_manager = LevelManager() 
+        self.item_manager = ItemManager()
+        self.audio_manager = AudioManager()
+        
+        # Camera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # Setup Level Manager
-        self.level_manager = LevelManager(current_theme='dungeon')
+        # Load Level Data
+        self.platforms, self.visual_tiles, spawn_point, self.finish_rect, self.bg_images = self.level_manager.create_level()
         
-        # Generate Rects, Gambar, dan Spawn Point dari Map
-        self.platforms, self.visual_tiles, spawn_point, finish_rect, self.bg_images = self.level_manager.create_level()
+        # Play Start Music
+        self.audio_manager.play_theme_music(self.level_manager.theme)
         
         # Hitung Ukuran Level (World Size)
         max_x = 0
@@ -50,7 +56,7 @@ class Game:
         self.player = Player(spawn_point[0], spawn_point[1])
         
         # Level Transition
-        self.finish_rect = finish_rect
+        # self.finish_rect is already set during load_level
         self.transitioning = False
         self.fade_alpha = 0
         self.fade_speed = 5
@@ -59,7 +65,6 @@ class Game:
         self.fade_state = 'IN'
         
         # Item System
-        self.item_manager = ItemManager()
         self.awaiting_item_selection = False
         self.current_item_choices = []  # [item_id, item_id]
         self.selected_item_index = 0    # For UI navigation (0 or 1)
@@ -168,6 +173,9 @@ class Game:
             # Re-Generate Level
             self.platforms, self.visual_tiles, spawn_point, finish_rect, self.bg_images = self.level_manager.create_level()
             self.finish_rect = finish_rect
+            
+            # Update Music
+            self.audio_manager.play_theme_music(self.level_manager.theme)
             
             # Re-Calculate Background Size
             max_x = 0
