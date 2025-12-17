@@ -83,10 +83,15 @@ class BaseEnemy(Entity):
         self.has_gravity = True  # Most enemies need gravity
         
         # 9. SPRITE ANCHOR OFFSET (for asymmetric sprites)
-        # Positive value = sprite character is offset to the RIGHT in the canvas
-        # When flipping, this offset will be inverted to prevent "jumping"
-        # Child classes can override this for sprites that aren't centered
-        self.sprite_anchor_offset = 0
+        # s_anchor_offset_x: Shifts sprite horizontally (useful for asymmetric bodies)
+        # s_offset_y: Shifts sprite vertically (useful for flying units or shadow alignment)
+        self.sprite_anchor_offset = 0 
+        self.sprite_offset_y = 0  # NEW: Vertical offset (Positive = Shift Sprite UP / Collider DOWN)
+        
+        # 10. STUN MECHANIC (for arcane spell)
+        self.is_stunned = False
+        self.stun_end_time = 0
+        self.STUN_DURATION = 2000  # 2 seconds in milliseconds
 
     # ===========================================
     # SECTION: AI LOGIC (State Machine)
@@ -147,14 +152,20 @@ class BaseEnemy(Entity):
             self.state = 'die'
             return
         
-        # Jika sedang hurt, tunggu sampai invincibility habis
-        if self.is_invincible and self.state == 'hurt':
-            # Check if hurt animation should finish
-            if not self.is_invincible:
-                # Hurt finished, return to previous state
+        # Jika sedang hurt, check if hurt state should end
+        if self.state == 'hurt':
+            # Cannot recover from hurt if still stunned
+            if self.is_stunned:
+                return  # Stay in hurt state, looping animation
+            
+            # Hurt ends when invincibility ends OR animation finishes
+            if not self.is_invincible or self.animator.is_animation_finished():
+                # Hurt finished, return to idle and continue AI
                 self.state = 'idle'
                 self.ai_state = self.STATE_IDLE
-            return  # Don't process other states while hurt
+                print(f"[COMBAT] {type(self).__name__} recovered from hurt")
+            else:
+                return  # Still in hurt state, don't process AI
         
         # Get distance only if player exists
         if not self.player_ref:
@@ -201,8 +212,15 @@ class BaseEnemy(Entity):
             self.state = 'walk'
         
         elif self.ai_state == self.STATE_CHASE:
-            x_velocity = self.do_chase()
-            self.state = 'walk'
+            # Check if already at optimal attack distance - stop instead of getting closer
+            distance = self.get_distance_to_player()
+            if distance <= self.attack_range:
+                # Already in range - stop and switch to attack
+                x_velocity = 0
+                self.state = 'idle'
+            else:
+                x_velocity = self.do_chase()
+                self.state = 'walk'
         
         elif self.ai_state == self.STATE_ATTACK:
             x_velocity = 0  # Diam saat menyerang
@@ -244,7 +262,9 @@ class BaseEnemy(Entity):
         
         # Update facing - direction: 1 = player di kanan, -1 = player di kiri
         # facing_right = TRUE berarti sprite menghadap kanan
-        self.facing_right = direction < 0  # INVERTED: hadap berlawanan dari arah gerak?
+        # Only update facing if NOT currently attacking (prevents sprite jumping mid-attack)
+        if not self.is_attacking:
+            self.facing_right = direction > 0  # Face towards player
         
         return direction * self.movement_speed
     
@@ -273,10 +293,22 @@ class BaseEnemy(Entity):
         
         # 1. Cek Invincibility (Hurt state)
         if self.is_invincible:
+            # Check if stun is active
+            if self.is_stunned:
+                if current_time >= self.stun_end_time:
+                    # Stun ended
+                    self.is_stunned = False
+                    print(f"[STUN] {type(self).__name__} recovered from stun!")
+                else:
+                    # Still stunned - loop hurt animation
+                    if self.animator.is_animation_finished():
+                        self.animator.reset_animation()  # Loop hurt animation
+            
+            # Normal invincibility check
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
-                # Exit hurt state
-                if self.state == 'hurt' and self.alive:
+                # Exit hurt state ONLY if not stunned
+                if self.state == 'hurt' and self.alive and not self.is_stunned:
                     self.state = 'idle'
                     self.ai_state = self.STATE_IDLE
                     print(f"[COMBAT] {type(self).__name__} recovered from hurt")
@@ -285,8 +317,9 @@ class BaseEnemy(Entity):
         if self.is_attacking:
             if self.animator.is_animation_finished():
                 self.is_attacking = False
-                self.animator.animation_finished = False
+                # Only reset animation_finished if ALIVE - don't touch death animation!
                 if self.alive:
+                    self.animator.animation_finished = False
                     self.state = 'idle'
     
     def update(self, platforms):
@@ -312,21 +345,60 @@ class BaseEnemy(Entity):
             # Even when dead, apply gravity to fall
             self.physics.update(platforms, 0, apply_gravity=self.has_gravity)
         
-        # 5. CRITICAL: Sync rect with physics.rect
+        # 5. Avoid overlapping with player (player = wall for enemy)
+        self.avoid_player_collision()
+        
+        # 6. CRITICAL: Sync rect with physics.rect
         self.rect = self.physics.rect
+    
+    def avoid_player_collision(self):
+        """
+        Prevent enemy from walking INTO player.
+        Only triggers when enemy is actively moving toward player.
+        Player CAN walk through enemies freely (no correction when player moves).
+        """
+        if not self.player_ref or not self.player_ref.alive or not self.alive:
+            return
+        
+        # Only correct if enemy has movement velocity (is actively moving)
+        # Use getattr for Skullwolf which uses physics.velocity_x directly
+        velocity_x = getattr(self.physics, 'velocity_x', self.physics.velocity.x if hasattr(self.physics, 'velocity') else 0)
+        if velocity_x == 0:
+            return  # Enemy not moving, player walked into them - no correction
+        
+        player_rect = self.player_ref.physics.rect
+        enemy_rect = self.physics.rect
+        
+        # Gap to prevent touching
+        GAP = 10
+        
+        if player_rect.colliderect(enemy_rect):
+            # Enemy walked into player - back off based on movement direction
+            if velocity_x > 0:
+                # Enemy was moving RIGHT → stop at LEFT of player
+                enemy_rect.right = player_rect.left - GAP
+            else:
+                # Enemy was moving LEFT → stop at RIGHT of player
+                enemy_rect.left = player_rect.right + GAP
+            
+            # Stop movement (handle both velocity types)
+            if hasattr(self.physics, 'velocity_x'):
+                self.physics.velocity_x = 0
+            if hasattr(self.physics, 'velocity'):
+                self.physics.velocity.x = 0
+            
+            # Sync float position
+            self.physics.pos.x = enemy_rect.x
     
     def draw(self, surface, camera_offset):
         """
         Render enemy ke layar.
+        Uses same anchor pattern as Player: center horizontal, anchor at bottom.
         
         Args:
             surface: Pygame surface untuk digambar
             camera_offset: Vector2 offset kamera
         """
-        # Don't render if dead and animation finished
-        if not self.alive and self.animator.is_animation_finished():
-            return
-        
         # Ambil frame animasi saat ini
         current_frame = self.animator.animate(
             self.state, 
@@ -338,12 +410,18 @@ class BaseEnemy(Entity):
             img_width = current_frame.get_width()
             img_height = current_frame.get_height()
             
-            # Hitung offset agar gambar pas di tengah hitbox
+            # ANCHOR PATTERN:
+            # - Center sprite horizontally on hitbox
+            # - Anchor at bottom (feet touch ground)
             offset_x = (img_width - self.physics.rect.width) // 2
-            offset_y = img_height - self.physics.rect.height
+            
+            # Vertical Offset:
+            # - Align Bottoms by default (img_height - rect.height)
+            # - Apply manual offset (Positive sprite_offset_y = shift sprite UP visually)
+            offset_y = (img_height - self.physics.rect.height) - self.sprite_offset_y
             
             # Apply sprite anchor offset for asymmetric sprites
-            # When facing left (flipped), invert the anchor offset
+            # When facing left (flipped), invert the anchor offset to prevent sprite jumping
             if self.sprite_anchor_offset != 0:
                 if self.facing_right:
                     offset_x += self.sprite_anchor_offset
@@ -371,8 +449,8 @@ class BaseEnemy(Entity):
         Args:
             camera: Camera object with offset attributes
         """
-        if not self.alive and self.animator.is_animation_finished():
-            return  # Jangan render jika mati dan animasi selesai
+        # NOTE: We intentionally DO NOT skip rendering dead enemies
+        # The death animation should play and stay at the last frame
         
         # Ambil frame animasi (TANPA flip, kita flip manual)
         # Use self.state (visual state) not self.ai_state (logic state)
@@ -401,11 +479,18 @@ class BaseEnemy(Entity):
             render_x = self.physics.rect.x - camera.offset.x
             render_y = self.physics.rect.y - camera.offset.y
             
-            # Center sprite di hitbox
-            sprite_offset_x = (sprite.get_width() - self.physics.rect.width) // 2
-            sprite_offset_y = (sprite.get_height() - self.physics.rect.height) // 2
+            # ANCHOR PATTERN (Match draw method):
+            offset_x = (img_width - self.physics.rect.width) // 2
+            offset_y = (img_height - self.physics.rect.height) - self.sprite_offset_y
             
-            camera.surface.blit(sprite, (render_x - sprite_offset_x, render_y - sprite_offset_y))
+            # Apply horizontal anchor offset
+            if self.sprite_anchor_offset != 0:
+                if self.facing_right:
+                    offset_x += self.sprite_anchor_offset
+                else:
+                    offset_x -= self.sprite_anchor_offset
+            
+            camera.surface.blit(sprite, (render_x - offset_x, render_y - offset_y))
         else:
             # Fallback: Gambar kotak merah jika tidak ada sprite
             color = (255, 0, 0)
@@ -418,10 +503,14 @@ class BaseEnemy(Entity):
     # SECTION: COMBAT (Override dari Entity)
     # ===========================================
     
-    def take_damage(self, amount):
+    def take_damage(self, amount, apply_stun=False):
         """
         Override take_damage untuk enemy.
         Tambahkan state hurt dan knockback.
+        
+        Args:
+            amount: Damage amount
+            apply_stun: If True, stun enemy for STUN_DURATION (arcane spell)
         """
         if not self.alive or self.is_invincible:
             return
@@ -432,16 +521,22 @@ class BaseEnemy(Entity):
         self.state = 'hurt'
         self.ai_state = self.STATE_HURT
         
+        # Apply stun if requested (arcane spell)
+        if apply_stun:
+            self.is_stunned = True
+            self.stun_end_time = pg.time.get_ticks() + self.STUN_DURATION
+            print(f"[STUN] {type(self).__name__} is STUNNED for {self.STUN_DURATION/1000}s!")
+        
         # Reset animation untuk hurt
         self.animator.reset_animation()
         
         # Cancel any ongoing attacks
         self.is_attacking = False
         
-        # Knockback effect (optional)
+        # Knockback effect (reduced to prevent launching enemies)
         if hasattr(self, 'player_ref') and self.player_ref:
             direction = self.get_direction_to_player()
-            knockback_force = -direction * 3  # Push away from player
+            knockback_force = -direction * 1.5  # Reduced from 3 to 1.5
             self.physics.velocity_x = knockback_force
         
         print(f"[COMBAT] {type(self).__name__} took {amount} dmg. HP: {self.current_hp}/{self.max_hp}")

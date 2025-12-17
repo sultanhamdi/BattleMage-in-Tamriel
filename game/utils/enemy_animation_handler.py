@@ -128,7 +128,7 @@ class EnemyAnimationHandler:
                 self.frame_index = len(frames) - 1
             
             # Animasi ATTACK & HURT: Tandai selesai, reset ke 0
-            elif 'attack' in state or 'hit' in state or 'hurt' in state or state in ['take_hit', 'damaged']:
+            elif 'attack' in state or 'hit' in state or 'hurt' in state or 'cast' in state or 'spell' in state or state in ['take_hit', 'damaged']:
                 self.animation_finished = True
                 self.frame_index = 0
             

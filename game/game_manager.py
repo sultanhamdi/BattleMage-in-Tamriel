@@ -71,6 +71,7 @@ class Game:
         self.enemies = []
         self.player_hit_enemies = set()  # Track which enemies were hit in current attack
         self.enemy_hit_player = set()     # Track which enemies hit player in current attack
+        self.enemy_last_attack_times = {}  # Track last attack time per enemy to detect new attacks
         self.last_player_attack_state = None  # Track attack state for combo reset
         self.spawn_enemies(self.enemy_spawns)
         
@@ -86,6 +87,9 @@ class Game:
         self.fade_surface = pg.Surface(WINDOW_SIZE)
         self.fade_surface.fill((0, 0, 0))
         self.fade_state = 'IN'
+        
+        # DEBUG MODE - Press F3 to toggle hitbox visualization
+        self.debug_mode = False
 
     def spawn_enemies(self, enemy_spawns=None):
         """
@@ -254,7 +258,9 @@ class Game:
             
             # Check if attack hitbox overlaps enemy
             if attack_rect.colliderect(enemy.physics.rect):
-                enemy.take_damage(damage)
+                # Apply stun if using arcane spell
+                apply_stun = (current_state == 'sustain_arcane')
+                enemy.take_damage(damage, apply_stun=apply_stun)
                 self.player_hit_enemies.add(id(enemy))
                 print(f"[HIT] Player hits {type(enemy).__name__}! ({enemy.current_hp}/{enemy.max_hp} HP)")
     
@@ -264,35 +270,214 @@ class Game:
             return
         
         for enemy in self.enemies:
+            # Debug: Log BringerOfDeath attacking state
+            if type(enemy).__name__ == 'BringerOfDeath':
+                print(f"[BOD DEBUG] is_attacking={enemy.is_attacking} state={enemy.state} ai_state={enemy.ai_state}")
+            
             if not enemy.alive or not enemy.is_attacking:
                 # Reset tracking when not attacking
                 self.enemy_hit_player.discard(id(enemy))
                 continue
             
-            # Skip if already hit player in this attack
-            if id(enemy) in self.enemy_hit_player:
+            # NEW: Track when each enemy starts a new attack
+            # If this is a new attack (different last_attack_time), clear the hit tracking
+            enemy_id = id(enemy)
+            if not hasattr(self, 'enemy_last_attack_times'):
+                self.enemy_last_attack_times = {}
+            
+            current_attack_time = enemy.last_attack_time
+            if enemy_id not in self.enemy_last_attack_times or self.enemy_last_attack_times[enemy_id] != current_attack_time:
+                # New attack started, clear hit tracking for this enemy
+                self.enemy_hit_player.discard(enemy_id)
+                self.enemy_last_attack_times[enemy_id] = current_attack_time
+            
+            # Skip if already hit player in THIS specific attack
+            if enemy_id in self.enemy_hit_player:
+                print(f"[DEBUG] Enemy {type(enemy).__name__} already hit player in current attack")
                 continue
             
             # Create attack hitbox for enemy
-            # Hitbox extends from enemy center outward to catch overlapping targets
-            attack_width = 70
-            attack_height = 60
+            # Attack box extends IN FRONT of enemy hitbox (not overlapping)
+            # Use enemy's custom attack box size if available
+            attack_width = getattr(enemy, 'attack_box_width', 70)
+            attack_height = getattr(enemy, 'attack_box_height', 60)
             
-            # Start from center of enemy, extend in facing direction
-            # This ensures hits when player overlaps with enemy
-            if enemy.facing_right:
-                attack_x = enemy.physics.rect.centerx - 20  # Start slightly behind center
+            # ACTIVE FRAME CHECK: Only apply damage during specific animation frames
+            # This makes attacks feel more realistic and gives player chance to dodge
+            current_frame = int(enemy.animator.frame_index) if hasattr(enemy.animator, 'frame_index') else 0
+            
+            # Special handling for BringerOfDeath
+            if type(enemy).__name__ == 'BringerOfDeath':
+                if enemy.state == 'attack':
+                    # Normal attack: active from frame 5 (when scythe swings)
+                    if current_frame < 5:
+                        continue  # Not yet in active frames
+                elif enemy.state == 'cast':
+                    # Cast spell: larger hitbox, active from frame 4
+                    if current_frame < 4:
+                        continue  # Still channeling
+                    attack_width = 180  # Wider spell range
+                    attack_height = 120
+                    
+            # Special handling for DemonSlime (15 frames total)
+            elif type(enemy).__name__ == 'DemonSlime':
+                if enemy.state == 'attack':
+                    # User feedback: still delayed, reduce to frame 2
+                    if current_frame < 2:
+                        continue
+                    # Use custom attack box (already set via attack_box_width/height)
+            
+            # Grass Monsters (8 frames total): attack, attack2
+            elif type(enemy).__name__ in ['FlyingEye', 'Goblin', 'Mushroom', 'Skeleton']:
+                if enemy.state in ['attack', 'attack2']:
+                    # 8 frames: hit at frame 4 (mid-swing)
+                    if current_frame < 4:
+                       continue
+                elif enemy.state == 'shield':  # Skeleton only
+                    continue
+            
+            # Ice Skeleton (18 frames total)
+            elif type(enemy).__name__ == 'IceSkeleton':
+                # FIX: Check lowercase 'attack' (matches enemy.state assignment)
+                if enemy.state == 'attack':
+                    # User says: udah pas at frame 6
+                    if current_frame < 6:
+                        continue
+            
+            # Golem (11 frames total)
+            elif type(enemy).__name__ == 'Golem':
+                if enemy.state == 'attack':
+                    # Frame 2 for fastest response
+                    if current_frame < 2:
+                        continue
+            
+            # Guardian (14 frames total)
+            elif type(enemy).__name__ == 'Guardian':
+                if enemy.state == 'attack':
+                    # User feedback: still delayed, reduce to frame 2
+                    if current_frame < 2:
+                        continue
+            
+            # Skullwolf (5 frames total) - keep default
+            elif type(enemy).__name__ == 'Skullwolf':
+                if enemy.state == 'attack':
+                    # 5 frames: quick pounce, hit early (frame 2)
+                    if current_frame < 2:
+                        continue  # Starting pounce
+                    
             else:
-                attack_x = enemy.physics.rect.centerx - attack_width + 20  # Start slightly behind center
+                # Default for any other enemies (frame 3+)
+                if current_frame < 3:
+                    continue
             
-            attack_y = enemy.physics.rect.centery - attack_height // 2
+            # Start from hitbox edge, extend in facing direction
+            if enemy.facing_right:
+                attack_x = enemy.physics.rect.right  # Start from right edge
+            else:
+                attack_x = enemy.physics.rect.left - attack_width  # Start from left edge
+            
+            
+            # Calculate Y position (raised for spell cast)
+            if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'cast':
+                # CURSE MECHANIC: Tornado follows player! (unavoidable)
+                if hasattr(enemy, 'spell_target_player') and enemy.spell_target_player:
+                    # Lock onto player center, 100px above head
+                    attack_x = self.player.physics.rect.centerx - attack_width // 2
+                    attack_y = self.player.physics.rect.top - 100  # 100px above player
+                    print(f"🎯 [CURSE TRACKING] Tornado following player at ({attack_x}, {attack_y})")
+                else:
+                    # Normal spell at BOD's position
+                    attack_y = enemy.physics.rect.centery - attack_height // 2 - 100  # Raised 100px for tornado
+            else:
+                attack_y = enemy.physics.rect.centery - attack_height // 2
+            
             attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
+            
+            # Debug collision check for BringerOfDeath only
+            if type(enemy).__name__ == 'BringerOfDeath':
+                print(f"[BOD ATTACK] attack_rect={attack_rect} player_rect={self.player.physics.rect} collision={attack_rect.colliderect(self.player.physics.rect)}")
             
             # Check collision with player - USE PHYSICS.RECT
             if attack_rect.colliderect(self.player.physics.rect):
-                self.player.take_damage(enemy.attack_power)
+                print(f"[COLLISION] {type(enemy).__name__} attack_rect {attack_rect} hits Player {self.player.physics.rect}")
+                
+                # Apply damage
+                damage = enemy.attack_power
+                
+                # Special handling for BringerOfDeath spell attacks
+                if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'cast':
+                    # Use spell damage instead of normal attack power
+                    damage = getattr(enemy, 'spell_damage', enemy.attack_power)
+                    
+                    # Apply knockback
+                    knockback = getattr(enemy, 'spell_knockback', 0)
+                    if knockback > 0:
+                        # Determine knockback direction (away from BOD)
+                        if self.player.physics.rect.centerx > enemy.physics.rect.centerx:
+                            # Player on right, knock right
+                            self.player.physics.velocity.x = knockback
+                        else:
+                            # Player on left, knock left
+                            self.player.physics.velocity.x = -knockback
+                        
+                        # Also knock upward
+                        self.player.physics.velocity.y = -8
+                        print(f"[KNOCKBACK] Player knocked back! vx={self.player.physics.velocity.x}")
+                        
+                        # Apply player stun at frame 6+ (when tornado visually hits)
+                        current_frame = int(enemy.animator.frame_index)
+                        print(f"[DEBUG STUN] BOD spell frame={current_frame}, checking if >= 6...")
+                        if current_frame >= 6:
+                            if not hasattr(self.player, 'is_stunned'):
+                                self.player.is_stunned = False
+                                self.player.stun_end_time = 0
+                            
+                            # Only stun if not already stunned (prevent re-stunning)
+                            if not self.player.is_stunned:
+                                self.player.is_stunned = True
+                                self.player.stun_end_time = pg.time.get_ticks() + 2000  # 2 second stun
+                                # Force player into hurt state for visual feedback
+                                self.player.state = 'hurt'
+                                self.player.animator.reset_animation()
+                                print(f"[STUN] Player STUNNED at frame {current_frame}! Tornado hit! Hurt loop for 2s")
+                        else:
+                            print(f"[DEBUG STUN] Frame {current_frame} < 6, not stunning yet")
+                
+                self.player.take_damage(damage)
                 self.enemy_hit_player.add(id(enemy))
                 print(f"[HIT] {type(enemy).__name__} hits Player! ({self.player.current_hp}/{self.player.max_hp} HP)")
+    
+    def check_entity_collision(self):
+        """
+        One-way collision: Enemy cannot overlap player (player = wall for enemy).
+        Player CAN walk through enemies freely.
+        When enemy is inside player, push enemy back to attack_range distance.
+        """
+        if not self.player.alive:
+            return
+        
+        player_rect = self.player.physics.rect
+        
+        for enemy in self.enemies:
+            if not enemy.alive:
+                continue
+            
+            enemy_rect = enemy.physics.rect
+            
+            if player_rect.colliderect(enemy_rect):
+                # Push enemy out to attack_range distance from player
+                # This makes enemy stand at proper attack distance, not inside player
+                attack_dist = enemy.attack_range
+                
+                if enemy_rect.centerx < player_rect.centerx:
+                    # Enemy on left - push to left side at attack range
+                    enemy.physics.rect.right = player_rect.left - attack_dist + enemy.physics.rect.width
+                else:
+                    # Enemy on right - push to right side at attack range
+                    enemy.physics.rect.left = player_rect.right + attack_dist - enemy.physics.rect.width
+                
+                # Sync float position
+                enemy.physics.pos.x = enemy.physics.rect.x
     
     def remove_dead_enemies(self):
         """Remove enemies that finished their death animation"""
@@ -326,6 +511,11 @@ class Game:
                         print("[CHEAT] Skipping level...")
                         self.transitioning = True
                         self.fade_state = 'OUT'
+                
+                # F3 = Toggle debug hitbox visualization
+                if event.key == pg.K_F3:
+                    self.debug_mode = not self.debug_mode
+                    print(f"[DEBUG] Hitbox visualization: {'ON' if self.debug_mode else 'OFF'}")
     
     def update(self):
         # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
@@ -340,6 +530,7 @@ class Game:
             # Combat checks
             self.check_player_attack_collision()
             self.check_enemy_attack_collision()
+            # Note: Entity collision is handled in BaseEnemy.avoid_player_collision()
             self.remove_dead_enemies()
             
             # Update projectiles and check for hits
@@ -449,12 +640,113 @@ class Game:
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
         
+        # DEBUG: Draw hitboxes if debug mode is on
+        if self.debug_mode:
+            self.draw_debug_hitboxes()
+        
         # Draw Fade Overlay
         if self.transitioning or self.fade_alpha > 0:
             self.fade_surface.set_alpha(self.fade_alpha)
             self.screen.blit(self.fade_surface, (0, 0))
         
         pg.display.flip()
+    
+    def draw_debug_hitboxes(self):
+        """Draw debug visualization of hitboxes and attack rects."""
+        cam = self.camera.offset
+        
+        # Player hitbox (BLUE)
+        player_rect = self.player.physics.rect.copy()
+        player_rect.x -= cam.x
+        player_rect.y -= cam.y
+        pg.draw.rect(self.screen, (0, 100, 255), player_rect, 2)
+        
+        # Log player info
+        p = self.player
+        print(f"[PLAYER] pos=({p.physics.rect.x}, {p.physics.rect.y}) size=({p.physics.rect.width}x{p.physics.rect.height}) state={p.state} facing={'R' if p.physics.facing_right else 'L'}")
+        
+        # Player attack box (GREEN) - when attacking
+        if p.is_attacking or p.state in ['spin_attack', 'sustain_arcane']:
+            # Replicate attack rect logic from check_player_attack_collision
+            current_frame = int(p.animator.frame_index)
+            attack_rect = None
+            
+            if p.state == 'spin_attack' and current_frame >= 2:
+                attack_width = 100
+                attack_height = 80
+                attack_x = p.physics.rect.centerx - attack_width // 2
+                attack_y = p.physics.rect.centery - attack_height // 2
+                attack_rect = pg.Rect(attack_x - cam.x, attack_y - cam.y, attack_width, attack_height)
+                
+            elif p.state == 'sustain_arcane' and current_frame >= 3:
+                attack_width = 120
+                attack_height = 50
+                if p.physics.facing_right:
+                    attack_x = p.physics.rect.right + 8
+                else:
+                    attack_x = p.physics.rect.left - attack_width - 8
+                attack_y = p.physics.rect.centery - attack_height // 2 - 10
+                attack_rect = pg.Rect(attack_x - cam.x, attack_y - cam.y, attack_width, attack_height)
+                
+            elif p.state == 'crouch_attack' and current_frame >= 2:
+                attack_width = 50
+                attack_height = 40
+                if p.physics.facing_right:
+                    attack_x = p.physics.rect.right
+                else:
+                    attack_x = p.physics.rect.left - attack_width
+                attack_y = p.physics.rect.bottom - attack_height
+                attack_rect = pg.Rect(attack_x - cam.x, attack_y - cam.y, attack_width, attack_height)
+                
+            elif p.state in ['attack1', 'attack2', 'attack3'] and current_frame >= 3:
+                attack_width = 60
+                attack_height = 70
+                if p.physics.facing_right:
+                    attack_x = p.physics.rect.right
+                else:
+                    attack_x = p.physics.rect.left - attack_width
+                attack_y = p.physics.rect.centery - attack_height // 2
+                attack_rect = pg.Rect(attack_x - cam.x, attack_y - cam.y, attack_width, attack_height)
+            
+            if attack_rect:
+                pg.draw.rect(self.screen, (0, 255, 100), attack_rect, 2)  # GREEN
+        
+        # Enemies
+        for enemy in self.enemies:
+            if not enemy.alive:
+                continue
+            
+            # Enemy hitbox (RED)
+            enemy_rect = enemy.physics.rect.copy()
+            enemy_rect.x -= cam.x
+            enemy_rect.y -= cam.y
+            pg.draw.rect(self.screen, (255, 50, 50), enemy_rect, 2)
+            
+            # Log enemy info
+            e = enemy
+            e_name = type(e).__name__
+            print(f"[{e_name}] pos=({e.physics.rect.x}, {e.physics.rect.y}) size=({e.physics.rect.width}x{e.physics.rect.height}) state={e.state} facing={'R' if e.facing_right else 'L'} attacking={e.is_attacking}")
+            
+            # Enemy attack rect (YELLOW) - only when attacking
+            if enemy.is_attacking:
+                attack_width = getattr(enemy, 'attack_box_width', 70)
+                attack_height = getattr(enemy, 'attack_box_height', 60)
+                if enemy.facing_right:
+                    attack_x = enemy.physics.rect.right  # Start from right edge
+                else:
+                    attack_x = enemy.physics.rect.left - attack_width  # Start from left edge
+                attack_y = enemy.physics.rect.centery - attack_height // 2
+                
+                attack_rect = pg.Rect(attack_x - cam.x, attack_y - cam.y, attack_width, attack_height)
+                pg.draw.rect(self.screen, (255, 255, 0), attack_rect, 2)
+                
+                # Log attack rect
+                print(f"  [ATTACK_RECT] x={attack_x} y={attack_y} w={attack_width} h={attack_height}")
+                
+                # Log distance to player
+                dist_x = p.physics.rect.centerx - e.physics.rect.centerx
+                dist_y = p.physics.rect.centery - e.physics.rect.centery
+                print(f"  [DISTANCE] dx={dist_x} dy={dist_y}")
 
     def run(self):
         while self.running:

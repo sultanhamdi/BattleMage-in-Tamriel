@@ -32,7 +32,8 @@ class Skullwolf(BaseEnemy):
         """Initialize Skullwolf at position (x, y)."""
         super().__init__(
             x=x, y=y,
-            width=48, height=48,
+            # GAMEPLAY HITBOX FIX: Minor - Slightly wider for fair hits
+            width=60, height=48,
             max_hp=70,
             attack_power=18,
             speed=4.5,
@@ -109,7 +110,10 @@ class Skullwolf(BaseEnemy):
         else:
             self.physics.update(platforms, 0, apply_gravity=self.has_gravity)
         
-        # 6. Sync rect
+        # 6. Prevent overlapping with player (inherited from BaseEnemy)
+        self.avoid_player_collision()
+        
+        # 7. Sync rect
         self.rect = self.physics.rect
     
     def _update_ai(self):
@@ -157,21 +161,26 @@ class Skullwolf(BaseEnemy):
             self.attack_cooldown = self.ATTACK_COOLDOWN
             
         elif distance <= self.POUNCE_RANGE:
-            # In pounce range - RUSH!
-            self.ai_state = 'pounce'
-            direction = self.get_direction_to_player()
-            # Only update facing if X distance is significant (threshold 10px)
-            dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
-            if abs(dx) > 10:
-                self.facing_right = dx < 0  # Sprite default faces LEFT, so invert
-            
-            self.physics.velocity_x = direction * self.pounce_speed
+            # In pounce range - RUSH! But stop at attack distance
+            if distance <= self.attack_range:
+                # Already at attack range - stop and wait for cooldown
+                self.ai_state = self.STATE_IDLE
+                self.physics.velocity_x = 0
+            else:
+                # Rush toward player
+                self.ai_state = 'pounce'
+                direction = self.get_direction_to_player()
+                # Only update facing if X distance is significant (threshold 10px)
+                dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
+                if abs(dx) > 10:
+                    self.facing_right = dx > 0  # Face towards player
+                
+                self.physics.velocity_x = direction * self.pounce_speed
             
         else:
             # Chase quickly
             self.ai_state = self.STATE_CHASE
             self.physics.velocity_x = self.do_chase()
-    
     def do_chase(self):
         """Override chase with correct facing direction."""
         direction = self.get_direction_to_player()
@@ -180,8 +189,8 @@ class Skullwolf(BaseEnemy):
         # This prevents rapid flipping when vertically aligned
         dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
         if abs(dx) > 10:
-            # Sprite default faces LEFT, so invert: face left when moving right
-            self.facing_right = dx < 0
+            # Face towards player
+            self.facing_right = dx > 0
             
         return direction * self.movement_speed
     
@@ -214,9 +223,9 @@ class Skullwolf(BaseEnemy):
         self.is_retreating = True
         self.retreat_counter = 30  # Retreat for 30 frames after attack animation
     
-    def take_damage(self, amount):
+    def take_damage(self, amount, apply_stun=False):
         """Override take damage - agile, can dodge."""
-        super().take_damage(amount)
+        super().take_damage(amount, apply_stun=apply_stun)
         if self.alive:
             # Quick retreat after taking damage
             self.is_retreating = True

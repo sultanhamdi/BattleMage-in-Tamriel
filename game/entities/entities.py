@@ -30,7 +30,7 @@ class Entity(pg.sprite.Sprite):
         self.last_attack_time = 0
         
         self.is_invincible = False
-        self.invincibility_duration = 1000 # ms (Kebal sesaat setelah kena hit)
+        self.invincibility_duration = 300 # ms (Reduced for combo attacks to work)
         self.last_hit_time = 0
 
     def update_timers(self):

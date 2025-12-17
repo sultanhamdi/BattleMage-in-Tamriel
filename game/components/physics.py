@@ -23,9 +23,22 @@ class PhysicsComponent:
             self.velocity.y = TERMINAL_VELOCITY
 
     def move_and_collide(self, platforms, x_velocity):
+        # SAFETY: Store old position
+        old_x = self.rect.x
+        old_y = self.rect.y
+        
         # 1. Gerakan Horizontal
         self.pos.x += x_velocity
         self.rect.x = round(self.pos.x) # Update rect visual dari posisi float
+        
+        # SAFETY: Prevent glitch teleports (max 200 pixels per frame)
+        # Increased to 200 to allow GameManager's attack_range push (approx 80-140px)
+        MAX_DELTA = 200
+        delta_x = self.rect.x - old_x
+        if abs(delta_x) > MAX_DELTA:
+            # Revert to safe position
+            self.rect.x = old_x
+            self.pos.x = float(old_x)
         
         # Update arah hadap (untuk animasi)
         if x_velocity > 0:
@@ -46,6 +59,13 @@ class PhysicsComponent:
         self.on_ground = False 
         self.pos.y += self.velocity.y
         self.rect.y = round(self.pos.y) # Update rect visual dari posisi float
+        
+        # SAFETY: Clamp Y delta too
+        delta_y = self.rect.y - old_y
+        if abs(delta_y) > MAX_DELTA:
+            self.rect.y = old_y
+            self.pos.y = float(old_y)
+            self.velocity.y = 0
 
         for platform in platforms:
             if self.rect.colliderect(platform):

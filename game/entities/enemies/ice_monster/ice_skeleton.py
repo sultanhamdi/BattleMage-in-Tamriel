@@ -31,17 +31,24 @@ class IceSkeleton(BaseEnemy):
         """Initialize Ice Skeleton at position (x, y)."""
         super().__init__(
             x=x, y=y,
-            width=45, height=55,
+            # GAMEPLAY HITBOX: Wider for fair hits
+            width=55, height=65,
             max_hp=75,
             attack_power=18,
             speed=2.5,
             asset_path=ICE_SKELETON_ASSET_PATH,
-            scale=2.0
+            scale=2.5  # Increased for more imposing presence
         )
+        
+        # GAMEPLAY HITBOX FIX: Sprite defaults face RIGHT, flipped when LEFT
+        # NEGATIVE value gets INVERTED when facing left (becomes positive shift)
+        self.sprite_anchor_offset = -25
         
         # Combat ranges
         self.detection_range = 350
-        self.attack_range = 60
+        # FIX BOUNCE: Attack range must be larger than player hitbox + GAP
+        # This ensures enemy stops and attacks BEFORE collision pushback triggers
+        self.attack_range = 70 
         self.lose_interest_range = 450
         
         # React system
@@ -63,23 +70,32 @@ class IceSkeleton(BaseEnemy):
             'die': 'Dead',
         }
         self.animator.load_sprites(animation_mapping)
-        self.animator.animation_speed = 0.12
+        self.animator.animation_speed = 0.15  # Responsive/Fast (matches Skullwolf)
     
     def update(self, platforms):
-        """Update dengan react behavior."""
+        """Update with EXACT GOBLIN PATTERN (PROVEN WORKING)."""
+        # 1. Update Timers
+        self.update_timers()
+        
         # Cooldown
         if self.react_cooldown > 0:
             self.react_cooldown -= 1
         
-        # Update timers
-        self.update_timers()
+        # 2. Handle hurt state WITH TIMEOUT (Goblin pattern)
+        current_time = pg.time.get_ticks()
+        hurt_timeout = False
+        if self.state == 'hurt':
+            if current_time - self.last_hit_time > 500:
+                hurt_timeout = True
         
-        if not self.alive:
-            self.physics.update(platforms, 0, apply_gravity=True)
-            self.rect = self.physics.rect
-            return
+        if self.state == 'hurt' and (self.animator.is_animation_finished() or hurt_timeout):
+            self.state = 'idle'
+            self.ai_state = self.STATE_IDLE
+            self.is_attacking = False
+            self.is_reacting = False
+            self.animator.animation_finished = False
         
-        # Check if should trigger react
+        # React trigger check
         if self.should_react and self.react_cooldown <= 0 and not self.is_reacting:
             self.is_reacting = True
             self.should_react = False
@@ -87,34 +103,47 @@ class IceSkeleton(BaseEnemy):
             self.state = 'react'
             self.animator.reset_animation()
         
-        # Update AI state
-        self.update_ai_state()
+        # 3. Run AI if not hurt (GOBLIN PATTERN)
+        if self.state != 'hurt' and self.alive:
+            self._update_ai()
+            
+            # Map AI state to visual state (GOBLIN PATTERN)
+            if self.is_reacting:
+                self.state = 'react'
+            elif self.ai_state in [self.STATE_CHASE, self.STATE_PATROL]:
+                self.state = 'walk'
+            elif self.ai_state == self.STATE_ATTACK:
+                self.state = 'attack'
+            elif self.ai_state == self.STATE_IDLE:
+                self.state = 'idle'
         
-        # Execute AI behavior
-        x_velocity = self.execute_ai_behavior()
+        # 4. Update Physics (GOBLIN PATTERN)
+        if self.alive:
+            self.physics.update(platforms, self.physics.velocity_x, apply_gravity=self.has_gravity)
+        else:
+            self.physics.update(platforms, 0, apply_gravity=self.has_gravity)
         
-        # Update physics with gravity
-        self.physics.update(platforms, x_velocity, apply_gravity=True)
+        # 5. Avoid player collision (GOBLIN PATTERN)
+        self.avoid_player_collision()
         
-        # CRITICAL: Sync rect with physics.rect
+        # 6. Sync rect (GOBLIN PATTERN)
         self.rect = self.physics.rect
-    
-    def execute_ai_behavior(self):
-        """
-        IMPROVED AI: Reactive undead warrior behavior.
-        Returns: x_velocity
-        """
-        if not self.alive or not self.player_ref:
-            self.state = 'idle'
-            return 0
-        
-        # Handle hurt state
-        if self.ai_state == self.STATE_HURT or self.state == 'hurt':
-            return 0
-        
+
+    def _update_ai(self):
+        """Standardized AI State Machine."""
+        if not self.player_ref or not self.alive:
+            self.ai_state = self.STATE_IDLE
+            self.physics.velocity_x = 0
+            return
+            
+        # 1. STRICT LOCK: If attacking, freeze velocity
+        if self.is_attacking:
+            self.physics.velocity_x = 0
+            return
+            
         # Handle react animation
         if self.is_reacting:
-            self.state = 'react'
+            self.physics.velocity_x = 0
             direction = self.get_direction_to_player()
             self.facing_right = direction > 0
             
@@ -125,41 +154,39 @@ class IceSkeleton(BaseEnemy):
                 # Trigger attack after react
                 self.ai_state = self.STATE_ATTACK
                 self.do_attack()
-            return 0
-        
+            return
+
         distance = self.get_distance_to_player()
         direction = self.get_direction_to_player()
+        self.facing_right = direction > 0
         
-        # STATE MACHINE
+        # STATE MACHINE (Goblin pattern)
+        # Too far - lose interest
         if distance > self.lose_interest_range:
-            # Too far - patrol
-            self.ai_state = self.STATE_PATROL
-            self.state = 'walk'
-            x_velocity = self.do_patrol()
-            
-        elif distance > self.detection_range:
-            # Idle
             self.ai_state = self.STATE_IDLE
-            self.state = 'idle'
-            x_velocity = 0
-            
-        elif distance <= self.attack_range:
-            # Melee attack
-            self.ai_state = self.STATE_ATTACK
-            self.facing_right = direction > 0
-            self.do_attack()
-            x_velocity = 0
-            
-        else:
-            # Chase
-            self.ai_state = self.STATE_CHASE
-            self.state = 'chase'
-            self.facing_right = direction > 0
-            x_velocity = direction * self.movement_speed
+            self.physics.velocity_x = 0
+            return
         
-        return x_velocity
+        # Not detected yet
+        if distance > self.detection_range:
+            self.ai_state = self.STATE_IDLE
+            self.physics.velocity_x = 0
+            return
+        
+        # In attack range - attack!
+        if distance <= self.attack_range:
+            # FIX GLITCH: Immediate velocity lock to prevent flickering
+            self.physics.velocity_x = 0
+            self.ai_state = self.STATE_ATTACK
+            if not self.is_attacking:
+                self.do_attack()
+            return
+        
+        # Default - chase
+        self.ai_state = self.STATE_CHASE
+        self.physics.velocity_x = direction * self.movement_speed
     
-    def take_damage(self, amount):
+    def take_damage(self, amount, apply_stun=False):
         """Override take damage - trigger react and apply resistance."""
         if not self.alive or self.is_invincible:
             return
@@ -172,6 +199,6 @@ class IceSkeleton(BaseEnemy):
             self.should_react = True
         
         # Call parent take_damage with reduced damage
-        super().take_damage(reduced_damage)
+        super().take_damage(reduced_damage, apply_stun=apply_stun)
         
         print(f"[ICE SKELETON] Resisted {amount - reduced_damage} damage!")

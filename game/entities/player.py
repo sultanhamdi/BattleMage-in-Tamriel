@@ -68,6 +68,19 @@ class Player(Entity):
         """Override Parent Timer Logic"""
         current_time = pg.time.get_ticks()
         
+        # Check player stun (from enemy spells like BOD tornado)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            if current_time >= self.stun_end_time:
+                self.is_stunned = False
+                # Exit hurt state when stun ends
+                if self.state == 'hurt':
+                    self.state = 'idle'
+                print(f"[STUN] Player recovered from stun!")
+            else:
+                # Keep looping hurt animation during stun
+                if self.state == 'hurt' and self.animator.is_animation_finished():
+                    self.animator.reset_animation()  # Loop hurt animation
+        
         # Cek Invincibility
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
@@ -103,7 +116,15 @@ class Player(Entity):
     def get_input(self):
         """Mengambil input keyboard khusus Player"""
         if not self.alive: return 0
-
+        
+        # Disable input when hurt to ensure visual feedback
+        if self.state == 'hurt':
+            return 0
+        
+        # STUN CHECK - Block all input when stunned (e.g., from BOD spell)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return 0  # Completely frozen - no movement
+        
         keys = pg.key.get_pressed()
         x_velocity = 0
         
@@ -164,9 +185,21 @@ class Player(Entity):
 
     def attack(self):
         """Logika Serangan (Combo & Crouch Attack)"""
-        # Jangan menyerang jika sedang menyerang, dash, spin, arcane, atau mati
-        if self.is_attacking or self.is_dashing or self.state == 'spin_attack' or self.state == 'sustain_arcane' or not self.alive:
+        # Block if stunned (e.g., from BOD spell)
+        if hasattr(self, 'is_stunned') and self.is_stunned:
             return
+        
+        # Jangan menyerang jika dash, spin, arcane, atau mati
+        if self.is_dashing or self.state == 'spin_attack' or self.state == 'sustain_arcane' or not self.alive:
+            return
+        
+        # Block if currently in middle of attack animation
+        # Only allow combo if previous attack is almost done or finished
+        if self.is_attacking and not self.animator.animation_finished:
+            # Check if we're in the last 30% of animation frames
+            # This allows chaining combos smoothly
+            if self.animator.frame_index < 5:  # Most attacks have 8-10 frames, allow chain at frame 5+
+                return
 
         current_time = pg.time.get_ticks()
         
@@ -175,7 +208,6 @@ class Player(Entity):
             self.is_attacking = True
             self.last_attack_time = current_time
             
-            # Reset animasi
             self.animator.frame_index = 0
             self.animator.animation_finished = False
             
@@ -205,6 +237,10 @@ class Player(Entity):
 
     def spin_attack(self):
         """Memulai Spin Attack"""
+        # Block if stunned
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return
+        
         if not self.alive or self.state == 'spin_attack':
             return
 
@@ -221,6 +257,10 @@ class Player(Entity):
 
     def sustain_arcane(self):
         """Memulai Sustain Arcane Attack"""
+        # Block if stunned
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return
+        
         if not self.alive or self.state == 'sustain_arcane':
             return
 
@@ -278,6 +318,10 @@ class Player(Entity):
                  self.state = 'idle'
 
     def jump(self):
+        # Block if stunned
+        if hasattr(self, 'is_stunned') and self.is_stunned:
+            return
+        
         # Tidak bisa lompat saat crouch atau attack
         if self.alive and not self.is_attacking and not self.is_crouching and self.state != 'spin_attack' and self.state != 'sustain_arcane':
             self.physics.jump()
