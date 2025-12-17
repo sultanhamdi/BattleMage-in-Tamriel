@@ -41,7 +41,10 @@ class Player(Entity):
         self.animator.load_custom_animation('spin_attack_effect', 64, 32)
         
         # Load Sustain Arcane Fire (72x32)
+        # Load Sustain Arcane Fire (72x32)
         self.animator.load_custom_animation('sustain_arcane_fire', 72, 32)
+        
+        self.audio_manager = None
 
         # SETUP SYSTEM
         self.combo_count = 1      
@@ -137,6 +140,27 @@ class Player(Entity):
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
+
+        # LOGIKA FOOTSTEP (Saat lari)
+        if self.state == 'run' and self.physics.on_ground:
+            # Trigger footstep pada frame tertentu (misal frame 1 dan 4)
+            # Frame index adalah float, jadi cek saat integer-nya berubah
+            current_frame_idx = int(self.animator.frame_index)
+            
+            # Kita butuh properti untuk simpan last frame agar tidak spawn suara berkali-kali di frame yang sama
+            if not hasattr(self, 'last_footstep_frame'):
+                self.last_footstep_frame = -1
+                
+            if current_frame_idx != self.last_footstep_frame:
+                # Asumsi animasi lari punya 6-8 frame. Trigger di frame 1 dan 4 agar ritmis
+                if current_frame_idx % 3 == 0: 
+                    if self.audio_manager:
+                        self.audio_manager.play_footstep()
+                
+                self.last_footstep_frame = current_frame_idx
+        else:
+            # Reset jika tidak lari
+            self.last_footstep_frame = -1
 
         # Cek Attack Selesai
         if self.is_attacking:
@@ -246,6 +270,9 @@ class Player(Entity):
             
             self.state = 'crouch_attack'
             print("[ACTION] Player performs Crouch Attack")
+            
+            if self.audio_manager:
+                self.audio_manager.play_sfx('attack1') # Use attack1 sfx for crouch attack
             return
 
         # LOGIKA NORMAL COMBO
@@ -267,6 +294,9 @@ class Player(Entity):
         
         self.state = f'attack{self.combo_count}' 
         print(f"[ACTION] Player Combo #{self.combo_count}")
+        
+        if self.audio_manager:
+            self.audio_manager.play_sfx(self.state)
 
     def spin_attack(self):
         """Memulai Spin Attack"""
@@ -283,6 +313,9 @@ class Player(Entity):
             self.animator.animation_finished = False
             
             print("[ACTION] Player performs Spin Attack!")
+            
+            if self.audio_manager:
+                self.audio_manager.play_sfx('spin_attack')
 
     def sustain_arcane(self):
         """Memulai Sustain Arcane Attack"""
@@ -299,6 +332,9 @@ class Player(Entity):
             self.animator.animation_finished = False
             
             print("[ACTION] Player performs Sustain Arcane!")
+            
+            if self.audio_manager:
+                self.audio_manager.play_sfx('sustain_arcane')
 
 
 
@@ -306,6 +342,8 @@ class Player(Entity):
         # Tidak bisa lompat saat crouch atau attack
         if self.alive and not self.is_attacking and not self.is_crouching and self.state != 'spin_attack' and self.state != 'sustain_arcane':
             self.physics.jump()
+            if self.audio_manager:
+                self.audio_manager.play_sfx('jump')
 
     def update(self, platforms):
         self.update_timers()

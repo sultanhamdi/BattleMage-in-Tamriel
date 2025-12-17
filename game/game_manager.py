@@ -54,6 +54,7 @@ class Game:
         
         # Spawn player
         self.player = Player(spawn_point[0], spawn_point[1])
+        self.player.audio_manager = self.audio_manager
         
         # Level Transition
         # self.finish_rect is already set during load_level

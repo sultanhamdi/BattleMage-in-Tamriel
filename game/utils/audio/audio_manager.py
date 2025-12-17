@@ -14,9 +14,56 @@ class AudioManager:
             "grass": "assets/audio/music/grass.wav"
         }
         
+        # Load SFX
+        self.sfx = {}
+        self.sfx_volume = 0.6
+        sfx_files = {
+            "attack1": "assets/audio/sfx/attack1.wav",
+            "attack2": "assets/audio/sfx/attack2.wav",
+            "attack3": "assets/audio/sfx/attack3.wav",
+            "jump": "assets/audio/sfx/jump.wav",
+            "land": "assets/audio/sfx/land.wav",
+            "spin_attack": "assets/audio/sfx/spin_attack.wav",
+            "sustain_arcane": "assets/audio/sfx/sustain_arcane.WAV",
+            # Footsteps
+            "dungeon_run": "assets/audio/sfx/dungeon_run.wav",
+            "snow_run": "assets/audio/sfx/snow_run.wav",
+            "grass_run": "assets/audio/sfx/grass_run.wav"
+        }
+        
+        for name, path in sfx_files.items():
+            if os.path.exists(path):
+                try:
+                    self.sfx[name] = pg.mixer.Sound(path)
+                    self.sfx[name].set_volume(self.sfx_volume)
+                    print(f"[AUDIO] Loaded SFX: {name}")
+                except Exception as e:
+                    print(f"[WARN] Failed to load SFX {name}: {e}")
+
         self.current_theme = None
         self.music_volume = 0.5
         pg.mixer.music.set_volume(self.music_volume)
+
+    def play_sfx(self, name):
+        """Play sound effect if loaded"""
+        if name in self.sfx:
+            self.sfx[name].play()
+
+    def play_footstep(self):
+        """Plays footstep SFX based on current theme"""
+        # Tentukan SFX berdasarkan current_theme
+        theme = self.current_theme if self.current_theme else "dungeon"
+        
+        # Mapping theme ke SFX key
+        sfx_key = f"{theme}_run"
+        
+        # Check jika SFX ada, kalau tidak fallback ke dungeon
+        if sfx_key not in self.sfx:
+            sfx_key = "dungeon_run"
+            
+        if sfx_key in self.sfx:
+            # Randomize pitch sedikit jika mau, tapi pygame mixer simple
+            self.sfx[sfx_key].play()
 
     def play_theme_music(self, theme):
         """Memainkan musik berdasarkan tema level"""
