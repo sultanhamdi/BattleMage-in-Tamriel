@@ -5,6 +5,7 @@ from game.entities.player import Player
 from game.utils.camera import Camera
 from game.utils.projectile import ProjectileManager
 from game.level.level_manager import LevelManager
+from game.ui.hud import HUD  # RESTORED HUD IMPORT
 
 # Import All Enemy Classes
 from game.entities.enemies import (
@@ -66,6 +67,9 @@ class Game:
         
         # Spawn player
         self.player = Player(spawn_point[0], spawn_point[1])
+        
+        # UI HUD System (RESTORED)
+        self.hud = HUD(self.screen, self.player)
         
         # Enemy System
         self.enemies = []
@@ -533,10 +537,11 @@ class Game:
             # Note: Entity collision is handled in BaseEnemy.avoid_player_collision()
             self.remove_dead_enemies()
             
-            # Update projectiles and check for hits
-            projectile_damage = self.projectile_manager.update(self.player)
             if projectile_damage > 0 and self.player.alive:
                 self.player.take_damage(projectile_damage)
+            
+            # Update HUD
+            self.hud.update()
         
         # Cek Finish Point Trigger - USE PHYSICS.RECT
         if self.finish_rect and not self.transitioning:
@@ -639,6 +644,9 @@ class Game:
 
         # Gambar Player
         self.player.draw(self.screen, self.camera.offset)
+        
+        # Draw HUD (UI Layer)
+        self.hud.draw()
         
         # DEBUG: Draw hitboxes if debug mode is on
         if self.debug_mode:
