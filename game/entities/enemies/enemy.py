@@ -4,9 +4,9 @@ from game.components.physics import PhysicsComponent
 from game.utils.enemy_animation_handler import EnemyAnimationHandler
 
 class BaseEnemy(Entity):
-    """Parent class for all enemy types with AI state machine."""
+    # parent class for all enemies with ai state machine
     
-    # AI States
+    # ai states
     STATE_IDLE = 'idle'
     STATE_PATROL = 'patrol'
     STATE_CHASE = 'chase'
@@ -15,7 +15,7 @@ class BaseEnemy(Entity):
     STATE_DIE = 'die'
     STATE_APPEAR = 'appear'
     
-    # Attack timing - override in child classes
+    # attack timing - override in child classes
     HIT_FRAME = 3
     ATTACK_BOX_WIDTH = 60
     ATTACK_BOX_HEIGHT = 50
@@ -24,47 +24,35 @@ class BaseEnemy(Entity):
         super().__init__(x=x, y=y, width=width, height=height, max_hp=max_hp, attack_power=attack_power, speed=speed)
         
         self.animator = EnemyAnimationHandler(asset_path, scale)
-        self.scale = scale
-        self.ai_state = self.STATE_IDLE
-        
-        # Detection & combat ranges
-        self.detection_range = 300
+        # detection and combat ranges
         self.attack_range = 50
         self.lose_interest_range = 400
         
-        # Patrol settings
+        # patrol settings
         self.patrol_speed = speed * 0.5
         self.patrol_direction = -1
         self.patrol_distance = 200
         self.spawn_x = x
         
-        # References and flags
+        # references and flags
         self.player_ref = None
         self.facing_right = False
         self.has_gravity = True
-        
-        # Sprite offsets
-        self.sprite_anchor_offset = 0
+        # sprite offsets
         self.sprite_offset_y = 0
-        
-        # Stun mechanic
+        self.sprite_anchor_offset = 0
+        # stun mechanic
         self.is_stunned = False
         self.stun_end_time = 0
-        self.STUN_DURATION = 2000  # 2 seconds in milliseconds
-
-    # ===========================================
-    # SECTION: AI LOGIC (State Machine)
-    # ===========================================
+        self.STUN_DURATION = 2000
+    # ai logic
     
     def set_player_reference(self, player):
-        """
-        Set referensi ke Player untuk AI detection.
-        Dipanggil dari GameManager saat spawn enemy.
-        """
+        # set player reference for ai detection
         self.player_ref = player
     
     def get_distance_to_player(self):
-        """Return distance to player in pixels."""
+        # return distance to player in pixels
         if not self.player_ref or not self.player_ref.alive:
             return float('inf')
         dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
@@ -72,7 +60,7 @@ class BaseEnemy(Entity):
         return (dx**2 + dy**2) ** 0.5
     
     def get_direction_to_player(self):
-        """Return 1 if player is right, -1 if left, 0 if no player."""
+        # return 1 if player is right, -1 if left
         if not self.player_ref:
             return 0
         if self.player_ref.physics.rect.centerx > self.physics.rect.centerx:
@@ -82,8 +70,7 @@ class BaseEnemy(Entity):
         return 0
     
     def update_ai_state(self):
-        """Update AI state based on player distance and conditions."""
-        # Jangan update AI jika mati
+        # update ai state based on player distance
         if not self.alive:
             self.ai_state = self.STATE_DIE
             self.state = 'die'
@@ -134,10 +121,8 @@ class BaseEnemy(Entity):
                 self.ai_state = self.STATE_CHASE
     
     def execute_ai_behavior(self):
-        """
-        Eksekusi behavior berdasarkan AI state.
-        Returns: x_velocity untuk physics component.
-        """
+        # execute behavior based on ai state
+        # returns x_velocity for physics
         x_velocity = 0
         
         if self.ai_state == self.STATE_IDLE:
@@ -170,11 +155,7 @@ class BaseEnemy(Entity):
         return x_velocity
     
     def do_patrol(self):
-        """
-        Logika patrol: Jalan bolak-balik dari titik spawn.
-        Returns: x_velocity
-        """
-        # Cek batas patrol
+        # patrol logic - walk back and forth from spawn
         if self.rect.x > self.spawn_x + self.patrol_distance:
             self.patrol_direction = -1  # Balik kiri
         elif self.rect.x < self.spawn_x - self.patrol_distance:
@@ -187,10 +168,7 @@ class BaseEnemy(Entity):
         return self.patrol_direction * self.patrol_speed
     
     def do_chase(self):
-        """
-        Logika chase: Kejar player.
-        Returns: x_velocity
-        """
+        # chase logic - follow player
         direction = self.get_direction_to_player()
         
         # Update facing - direction: 1 = player di kanan, -1 = player di kiri
@@ -202,10 +180,7 @@ class BaseEnemy(Entity):
         return direction * self.movement_speed
     
     def do_attack(self):
-        """
-        Logika attack: Serang player jika tidak sedang menyerang.
-        Child class bisa override untuk behavior spesifik.
-        """
+        # attack logic - initiate attack if not already attacking
         if not self.is_attacking and self.alive:
             self.is_attacking = True
             self.last_attack_time = pg.time.get_ticks()
@@ -213,13 +188,7 @@ class BaseEnemy(Entity):
             self.animator.reset_animation()
     
     def get_attack_hitbox(self):
-        """
-        Return attack hitbox rect based on facing direction.
-        Child classes can override for custom hitbox shapes.
-        
-        Returns:
-            pg.Rect: The attack hitbox rect
-        """
+        # return attack hitbox rect based on facing direction
         width = getattr(self, 'attack_box_width', self.ATTACK_BOX_WIDTH)
         height = getattr(self, 'attack_box_height', self.ATTACK_BOX_HEIGHT)
         
@@ -232,18 +201,13 @@ class BaseEnemy(Entity):
         
         return pg.Rect(x, y, width, height)
     
-    # ===========================================
-    # SECTION: UPDATE & DRAW (Override Entity)
-    # ===========================================
+    # update and draw
     
     def update_timers(self):
-        """
-        Override timer logic untuk Enemy.
-        Mirip dengan Entity, tapi cek animation_finished untuk attack.
-        """
+        # override timer logic for enemy
         current_time = pg.time.get_ticks()
         
-        # 1. Cek Invincibility (Hurt state)
+        # check invincibility
         if self.is_invincible:
             # Check if stun is active
             if self.is_stunned:
@@ -264,8 +228,7 @@ class BaseEnemy(Entity):
                     self.state = 'idle'
                     self.ai_state = self.STATE_IDLE
                     print(f"[COMBAT] {type(self).__name__} recovered from hurt")
-        
-        # 2. Cek Attack Selesai (berdasarkan animasi)
+        # check attack finished
         if self.is_attacking:
             if self.animator.is_animation_finished():
                 self.is_attacking = False
@@ -275,13 +238,7 @@ class BaseEnemy(Entity):
                     self.state = 'idle'
     
     def update(self, platforms):
-        """        Main update loop untuk Enemy.
-        Dipanggil setiap frame dari GameManager.
-        
-        Args:
-            platforms: List of Rect untuk collision detection
-        """
-        # 1. Update Timers
+        # main update loop for enemy
         self.update_timers()
         
         # 2. Update AI State
@@ -304,11 +261,7 @@ class BaseEnemy(Entity):
         self.rect = self.physics.rect
     
     def avoid_player_collision(self):
-        """
-        Prevent enemy from walking INTO player.
-        Only triggers when enemy is actively moving toward player.
-        Player CAN walk through enemies freely (no correction when player moves).
-        """
+        # prevent enemy from walking into player
         if not self.player_ref or not self.player_ref.alive or not self.alive:
             return
         
@@ -343,15 +296,7 @@ class BaseEnemy(Entity):
             self.physics.pos.x = enemy_rect.x
     
     def draw(self, surface, camera_offset):
-        """
-        Render enemy ke layar.
-        Uses same anchor pattern as Player: center horizontal, anchor at bottom.
-        
-        Args:
-            surface: Pygame surface untuk digambar
-            camera_offset: Vector2 offset kamera
-        """
-        # Ambil frame animasi saat ini
+        # render enemy to screen
         current_frame = self.animator.animate(
             self.state, 
             self.animator.animation_speed, 
@@ -361,19 +306,14 @@ class BaseEnemy(Entity):
         if current_frame:
             img_width = current_frame.get_width()
             img_height = current_frame.get_height()
-            
-            # ANCHOR PATTERN:
-            # - Center sprite horizontally on hitbox
-            # - Anchor at bottom (feet touch ground)
+            # anchor pattern
+            # center horizontal, anchor at bottom
             offset_x = (img_width - self.physics.rect.width) // 2
             
-            # Vertical Offset:
-            # - Align Bottoms by default (img_height - rect.height)
-            # - Apply manual offset (Positive sprite_offset_y = shift sprite UP visually)
+            # vertical offset
             offset_y = (img_height - self.physics.rect.height) - self.sprite_offset_y
             
-            # Apply sprite anchor offset for asymmetric sprites
-            # When facing left (flipped), invert the anchor offset to prevent sprite jumping
+            # sprite anchor offset for asymmetric sprites
             if self.sprite_anchor_offset != 0:
                 if self.facing_right:
                     offset_x += self.sprite_anchor_offset
@@ -385,27 +325,16 @@ class BaseEnemy(Entity):
             
             surface.blit(current_frame, (draw_pos_x, draw_pos_y))
         else:
-            # Fallback: Gambar kotak merah jika tidak ada sprite
+            # fallback - draw red box if no sprite
             print(f"[WARNING] No sprite for {type(self).__name__} state: {self.state}")
-            color = (255, 0, 0)  # Merah untuk enemy
+            color = (255, 0, 0)
             draw_rect = self.physics.rect.copy()
             draw_rect.x -= camera_offset.x
             draw_rect.y -= camera_offset.y
             pg.draw.rect(surface, color, draw_rect)
     
     def render_sprite(self, camera):
-        """
-        NEW METHOD: Render enemy sprite with Camera object.
-        Compatible with new child class implementations.
-        
-        Args:
-            camera: Camera object with offset attributes
-        """
-        # NOTE: We intentionally DO NOT skip rendering dead enemies
-        # The death animation should play and stay at the last frame
-        
-        # Ambil frame animasi (TANPA flip, kita flip manual)
-        # Use self.state (visual state) not self.ai_state (logic state)
+        # render with camera object
         animation_state = self.state
         
         sprite = self.animator.animate(
@@ -432,6 +361,8 @@ class BaseEnemy(Entity):
             render_y = self.physics.rect.y - camera.offset.y
             
             # ANCHOR PATTERN (Match draw method):
+            img_width = sprite.get_width()
+            img_height = sprite.get_height()
             offset_x = (img_width - self.physics.rect.width) // 2
             offset_y = (img_height - self.physics.rect.height) - self.sprite_offset_y
             
@@ -451,19 +382,10 @@ class BaseEnemy(Entity):
             draw_rect.y -= camera.offset.y
             pg.draw.rect(camera.surface, color, draw_rect)
     
-    # ===========================================
-    # SECTION: COMBAT (Override dari Entity)
-    # ===========================================
+    # combat
     
     def take_damage(self, amount, apply_stun=False):
-        """
-        Override take_damage untuk enemy.
-        Tambahkan state hurt dan knockback.
-        
-        Args:
-            amount: Damage amount
-            apply_stun: If True, stun enemy for STUN_DURATION (arcane spell)
-        """
+        # override take damage for enemy
         if not self.alive or self.is_invincible:
             return
         
@@ -473,19 +395,19 @@ class BaseEnemy(Entity):
         self.state = 'hurt'
         self.ai_state = self.STATE_HURT
         
-        # Apply stun if requested (arcane spell)
+        # apply stun if requested
         if apply_stun:
             self.is_stunned = True
             self.stun_end_time = pg.time.get_ticks() + self.STUN_DURATION
             print(f"[STUN] {type(self).__name__} is STUNNED for {self.STUN_DURATION/1000}s!")
         
-        # Reset animation untuk hurt
+        # reset animation for hurt
         self.animator.reset_animation()
         
-        # Cancel any ongoing attacks
+        # cancel any ongoing attacks
         self.is_attacking = False
         
-        # Knockback effect (reduced to prevent launching enemies)
+        # knockback effect
         if hasattr(self, 'player_ref') and self.player_ref:
             direction = self.get_direction_to_player()
             knockback_force = -direction * 1.5  # Reduced from 3 to 1.5
@@ -497,10 +419,7 @@ class BaseEnemy(Entity):
             self.die()
     
     def die(self):
-        """
-        Override die untuk enemy.
-        Set AI state ke DIE.
-        """
+        # override die for enemy
         self.alive = False
         self.current_hp = 0
         self.ai_state = self.STATE_DIE

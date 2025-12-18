@@ -2,12 +2,31 @@ import pygame as pg
 import os
 
 class AudioManager:
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(AudioManager, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
-        # Inisialisasi Mixer jika belum
+        if getattr(self, '_initialized', False):
+            return
+            
+        self._initialized = True
+        
+        # init mixer
         if not pg.mixer.get_init():
             pg.mixer.init()
             
-        # Path Music (Relative to main.py execution)
+        # music paths
         self.music_paths = {
             "dungeon": "assets/audio/music/dungeon.wav",
             "snow": "assets/audio/music/snow.wav",
@@ -42,15 +61,39 @@ class AudioManager:
 
         self.current_theme = None
         self.music_volume = 0.5
+        self.music_enabled = True
+        self.sfx_enabled = True
         pg.mixer.music.set_volume(self.music_volume)
 
+    def toggle_music(self):
+        self.music_enabled = not self.music_enabled
+        if self.music_enabled:
+            pg.mixer.music.set_volume(self.music_volume)
+            if self.current_theme:
+                pg.mixer.music.unpause()
+            else:
+                # Restart theme if stopped and we know what theme
+                pass
+        else:
+            pg.mixer.music.set_volume(0)
+            pg.mixer.music.pause()
+        return self.music_enabled
+
+    def toggle_sfx(self):
+        self.sfx_enabled = not self.sfx_enabled
+        # update all loaded sfx volume
+        vol = self.sfx_volume if self.sfx_enabled else 0
+        for sfx in self.sfx.values():
+            sfx.set_volume(vol)
+        return self.sfx_enabled
+
     def play_sfx(self, name):
-        """Play sound effect if loaded"""
-        if name in self.sfx:
+        # play sound effect
+        if self.sfx_enabled and name in self.sfx:
             self.sfx[name].play()
 
     def play_footstep(self):
-        """Plays footstep SFX based on current theme"""
+        # play footstep based on theme
         # Tentukan SFX berdasarkan current_theme
         theme = self.current_theme if self.current_theme else "dungeon"
         
@@ -61,12 +104,12 @@ class AudioManager:
         if sfx_key not in self.sfx:
             sfx_key = "dungeon_run"
             
-        if sfx_key in self.sfx:
+        if self.sfx_enabled and sfx_key in self.sfx:
             # Randomize pitch sedikit jika mau, tapi pygame mixer simple
             self.sfx[sfx_key].play()
 
     def play_theme_music(self, theme):
-        """Memainkan musik berdasarkan tema level"""
+        # play music based on level theme
         # Mapping tema yang mungkin beda nama di Tiled (misal 'dungeon_bg' -> 'dungeon')
         theme_key = theme.lower()
         
@@ -90,6 +133,10 @@ class AudioManager:
             try:
                 pg.mixer.music.load(path)
                 pg.mixer.music.play(loops=-1, fade_ms=1000) # Loop selamanya, fade in 1 detik
+                # set volume based on enabled state
+                effective_vol = self.music_volume if self.music_enabled else 0
+                pg.mixer.music.set_volume(effective_vol)
+                
                 self.current_theme = target_key
                 print(f"[AUDIO] Now Playing: {target_key}")
             except Exception as e:

@@ -1,75 +1,51 @@
 import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
 
-# Path aset lokal untuk Boss Demon Slime
 DEMON_SLIME_ASSET_PATH = 'assets/graphics/enemies/dungeon_monster/boss_demon_slime/'
 
 class DemonSlime(BaseEnemy):
-    """
-    Enemy Demon Slime - Mini-Boss dengan High HP & Cleave Attack.
+    # mini-boss with high hp and cleave attack
     
-    KARAKTERISTIK:
-    - HP: 150 (Very High - Boss tier)
-    - Damage: 25 (High)
-    - Speed: 1.8 (Slow but powerful)
-    - Behavior: Aggressive, cleave AOE attack, relentless
+    # ai constants
+    CLEAVE_RANGE = 80
+    CLEAVE_COOLDOWN = 150
+    RAGE_HP_THRESHOLD = 0.4
     
-    ANIMASI:
-    01_demon_idle(6), 02_demon_walk(12), 03_demon_cleave(15), 04_demon_take_hit(5), 05_demon_death(22)
-    
-    SPECIAL ABILITY:
-    - Cleave Attack: Wide AOE swing (high damage)
-    - Boss HP: Much higher HP than normal enemies
-    - Relentless: Never gives up chase
-    """
-    
-    # AI CONSTANTS
-    CLEAVE_RANGE = 80        # Wider attack range
-    CLEAVE_COOLDOWN = 150    # Slower but powerful attacks
-    RAGE_HP_THRESHOLD = 0.4  # Enrage when HP < 40%
-    
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 2  # Fast cleave start
+    # attack timing
+    HIT_FRAME = 2
     
     def __init__(self, x, y):
-        """Initialize Demon Slime at position (x, y)."""
         super().__init__(
             x=x, y=y,
-            # GAMEPLAY HITBOX FIX: Tiny Box Problem
-            # Massive boss needs massive hitbox covering torso/head
             width=100, height=150,
             max_hp=150,
             attack_power=25,
             speed=1.8,
             asset_path=DEMON_SLIME_ASSET_PATH,
-            scale=2.2  # Larger boss
+            scale=2.2
         )
         
-        # Combat ranges
-        self.detection_range = 500  # Detects from far
-        # FIX RANGE: Match large attack box (180) for consistent hit feeling
+        # combat ranges
+        self.detection_range = 500
         self.attack_range = 150 
-        self.lose_interest_range = 800  # Never gives up easily
+        self.lose_interest_range = 800
         
-        # Custom Attack Box for Cleave (wider than hitbox)
-        self.attack_box_width = 180  # Extended for very long cleaver sprite
-        self.attack_box_height = 110  # Increased to cover more body
+        # attack hitbox
+        self.attack_box_width = 180
+        self.attack_box_height = 110
         
-        # Sprite anchor offset (body center is left of sprite center)
+        # sprite anchor offset
         self.sprite_anchor_offset = -25.0
         
-        # Boss mechanics
+        # boss mechanics
         self.is_enraged = False
-        self.enrage_damage_multiplier = 1.3  # 30% more damage when enraged
+        self.enrage_damage_multiplier = 1.3
         
-        # FIX SPEED: Increase movement speed slightly
         self.movement_speed = 2.2
         
-        # CRITICAL FIX: Must call _setup_animations() to load sprites!
         self._setup_animations()
     
     def _setup_animations(self):
-        """Load animasi Demon Slime."""
         animation_mapping = {
             'idle': 'idle',
             'walk': 'walk',
@@ -84,7 +60,6 @@ class DemonSlime(BaseEnemy):
         self.animator.animation_speed = 0.15  # Faster, more responsive (matches Skullwolf)
     
     def update(self, platforms):
-        """Override update with EXACT GOBLIN PATTERN (hurt timeout + direct AI)."""
         # 1. Update Timers
         self.update_timers()
         
@@ -136,7 +111,7 @@ class DemonSlime(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """Standardized AI: Boss behavior matching Skullwolf pattern."""
+        # boss ai behavior
         if not self.alive or not self.player_ref:
             return
             
@@ -181,12 +156,11 @@ class DemonSlime(BaseEnemy):
         self.physics.velocity_x = chase_speed
     
     def do_attack(self):
-        """Cleave attack - uses parent's attack system."""
+        # cleave attack
         super().do_attack()
         print(f"[DEMON SLIME] CLEAVE ATTACK! (Enraged: {self.is_enraged})")
     
     def take_damage(self, amount, apply_stun=False):
-        """Override take damage - boss has defense."""
-        # Reduce damage slightly (boss armor)
+        # boss has defense
         reduced_damage = amount * 0.9
         super().take_damage(int(reduced_damage), apply_stun=apply_stun)

@@ -152,9 +152,9 @@ ITEMS = {
 }
 
 def get_item(item_id):
-    """Get item data by ID"""
+    # get item data by id
     return ITEMS.get(item_id)
 
 def get_all_item_ids():
-    """Get list of all item IDs"""
+    # get all item ids
     return list(ITEMS.keys())

@@ -2,27 +2,26 @@ import pygame as pg
 from game.settings import BLUE, SCALE
 from game.entities.entities import Entity
 from game.utils.player_animation_handler import PlayerAnimationHandler
+from game.utils.audio.audio_manager import AudioManager
 
-# Path aset lokal untuk player
 PLAYER_ASSET_PATH = 'assets/graphics/player/'
 
 class Player(Entity): 
-    def __init__(self, x, y):
-        # STATS
+    def __init__(self, x, y, audio_manager):
+        # stats
         stats_hp = 10000
         stats_attack = 25
         stats_speed = 8
 
-        # INIT PARENT
+        # parent
         super().__init__(
             x=x, y=y, 
-            width=40, height=80,    # Ukuran Hitbox
+            width=40, height=80,    # Hitbox
             max_hp=stats_hp, 
             attack_power=stats_attack, 
             speed=stats_speed
         )
         
-        # SETUP VISUAL
         self.frame_width = 56   
         self.frame_height = 48  
         self.scale = SCALE 
@@ -43,12 +42,12 @@ class Player(Entity):
         # Load Sustain Arcane Fire (72x32)
         self.animator.load_custom_animation('sustain_arcane_fire', 72, 32)
 
-        # SETUP SYSTEM
+        # combo system
         self.combo_count = 1      
         self.combo_window = 1000  
         self.is_crouching = False # Flag status crouch
 
-        # DASH SYSTEM
+        # dash system
         self.DASH_SPEED = 15
         self.DASH_DURATION = 200 # ms
         self.DASH_COOLDOWN = 1000 # ms
@@ -56,16 +55,18 @@ class Player(Entity):
         self.dash_timer = 0
         self.last_dash_time = 0
 
-        # SPIN ATTACK SYSTEM
+        # spin attack system
         self.SPIN_COOLDOWN = 2000 # ms
         self.last_spin_time = 0
 
-        # SUSTAIN ARCANE SYSTEM
+        # sustain arcane system
         self.ARCANE_COOLDOWN = 3000 # ms
         self.last_arcane_time = 0
+        
+        # audio system
+        self.audio_manager = audio_manager
 
     def update_timers(self):
-        """Override Parent Timer Logic"""
         current_time = pg.time.get_ticks()
         
         # Check player stun (from enemy spells like BOD tornado)
@@ -118,7 +119,6 @@ class Player(Entity):
                 self.animator.animation_finished = False
 
     def get_input(self):
-        """Mengambil input keyboard khusus Player"""
         if not self.alive: return 0
         
         # Disable input when hurt to ensure visual feedback
@@ -127,13 +127,12 @@ class Player(Entity):
         
         # STUN CHECK - Block all input when stunned (e.g., from BOD spell)
         if hasattr(self, 'is_stunned') and self.is_stunned:
-            return 0  # Completely frozen - no movement
+            return 0  # frozen - no movement
         
         keys = pg.key.get_pressed()
         x_velocity = 0
         
-        # LOGIKA DASH
-        # Jika sedang dash, abaikan input lain dan paksa gerak cepat
+        # dash logic
         if self.is_dashing:
             direction = 1 if self.physics.facing_right else -1
             return self.DASH_SPEED * direction
@@ -142,15 +141,14 @@ class Player(Entity):
         if keys[pg.K_w] and self.alive:
             self.start_dash()
 
-        # LOGIKA CROUCH
-        # Hanya bisa crouch jika di tanah
+        # crouch logic
         if keys[pg.K_DOWN] and self.physics.on_ground:
             self.is_crouching = True
-            x_velocity = 0 # Tidak bisa jalan saat crouch
+            x_velocity = 0 # can't move while crouching
         else:
             self.is_crouching = False
             
-            # Gerak Kiri Kanan (Hanya jika TIDAK crouch)
+            # left right logic
             if keys[pg.K_LEFT]:
                 x_velocity = -self.movement_speed
             if keys[pg.K_RIGHT]:
@@ -171,7 +169,6 @@ class Player(Entity):
         return x_velocity
 
     def start_dash(self):
-        """Memulai aksi Dash"""
         current_time = pg.time.get_ticks()
         
         # Cek Cooldown
@@ -188,7 +185,6 @@ class Player(Entity):
             print("[ACTION] Player Dashes!")
 
     def attack(self):
-        """Logika Serangan (Combo & Crouch Attack)"""
         # Block if stunned (e.g., from BOD spell)
         if hasattr(self, 'is_stunned') and self.is_stunned:
             return
@@ -236,11 +232,12 @@ class Player(Entity):
         self.animator.frame_index = 0
         self.animator.animation_finished = False
         
-        self.state = f'attack{self.combo_count}' 
+        self.state = f'attack{self.combo_count}'
+        self.audio_manager.play_sfx(f'attack{self.combo_count}')
         print(f"[ACTION] Player Combo #{self.combo_count}")
 
     def spin_attack(self):
-        """Memulai Spin Attack"""
+        # spin attack skill
         # Block if stunned
         if hasattr(self, 'is_stunned') and self.is_stunned:
             return
@@ -256,11 +253,11 @@ class Player(Entity):
             
             self.animator.frame_index = 0
             self.animator.animation_finished = False
-            
+            self.audio_manager.play_sfx('spin_attack')
             print("[ACTION] Player performs Spin Attack!")
 
     def sustain_arcane(self):
-        """Memulai Sustain Arcane Attack"""
+        # sustain arcane skill
         # Block if stunned
         if hasattr(self, 'is_stunned') and self.is_stunned:
             return
@@ -276,11 +273,11 @@ class Player(Entity):
             
             self.animator.frame_index = 0
             self.animator.animation_finished = False
-            
+            self.audio_manager.play_sfx('sustain_arcane')
             print("[ACTION] Player performs Sustain Arcane!")
 
     def get_status(self, x_velocity):
-        """State Machine"""
+        # state machine
         if not self.alive:
             self.state = 'death'
             return
@@ -334,6 +331,7 @@ class Player(Entity):
         # Tidak bisa lompat saat crouch atau attack
         if self.alive and not self.is_attacking and not self.is_crouching and self.state != 'spin_attack' and self.state != 'sustain_arcane':
             self.physics.jump()
+            self.audio_manager.play_sfx('jump')
 
     def update(self, platforms):
         self.update_timers()

@@ -11,15 +11,12 @@ class ItemManager:
         self.collected_items = []
         
     def reset(self):
-        """Reset pool to full (for new game)"""
+        # reset pool
         self.available_pool = get_all_item_ids().copy()
         self.collected_items = []
         
     def get_random_choices(self, count=2):
-        """
-        Get random items from pool for player to choose from.
-        Returns list of item IDs.
-        """
+        # get random items from pool
         if len(self.available_pool) < count:
             # Not enough items left, return what's available
             return self.available_pool.copy()
@@ -27,10 +24,7 @@ class ItemManager:
         return random.sample(self.available_pool, count)
     
     def pick_item(self, item_id):
-        """
-        Player picks an item. Remove from pool and add to collected.
-        Returns the item data or None if invalid.
-        """
+        # player picks an item
         if item_id not in self.available_pool:
             print(f"[ERROR] Item '{item_id}' not in pool!")
             return None
@@ -47,10 +41,7 @@ class ItemManager:
         return item_data
     
     def apply_item_to_player(self, player, item_id):
-        """
-        Apply item effects to player stats.
-        Handles both flat bonuses and multipliers.
-        """
+        # apply item effects to player stats
         item_data = ITEMS.get(item_id)
         if not item_data:
             return False
@@ -90,13 +81,13 @@ class ItemManager:
         return True
     
     def get_pool_size(self):
-        """Get remaining items in pool"""
+        # get remaining items in pool
         return len(self.available_pool)
     
     def get_collected_count(self):
-        """Get number of items player has collected"""
+        # get collected items count
         return len(self.collected_items)
 
     def get_item_info(self, item_id):
-        """Get item details by ID"""
+        # get item details
         return ITEMS.get(item_id)

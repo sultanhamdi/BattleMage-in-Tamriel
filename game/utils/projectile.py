@@ -1,10 +1,10 @@
-"""Projectile system for enemy range attacks."""
+# projectile system for enemy range attacks
 
 import pygame as pg
 
 
 class Projectile:
-    """Single projectile entity with impact animation support."""
+    # single projectile entity with impact animation support
     
     # Default projectile settings
     DEFAULT_HITBOX_SIZE = (20, 12)  # Width x Height for hitbox
@@ -13,18 +13,6 @@ class Projectile:
     
     def __init__(self, x, y, direction, speed, damage, sprites=None, scale=1.0, 
                  impact_start_frame=None):
-        """
-        Initialize projectile.
-        
-        Args:
-            x, y: Starting position
-            direction: 1 for right, -1 for left
-            speed: Movement speed in pixels per frame
-            damage: Damage dealt on hit
-            sprites: List of animation frames (optional)
-            scale: Scale factor for sprites
-            impact_start_frame: Frame index where impact animation starts (None = no impact anim)
-        """
         self.start_x = float(x)
         self.start_y = float(y)
         self.x = float(x)
@@ -66,7 +54,7 @@ class Projectile:
         self.hit_wall = False
     
     def trigger_impact(self):
-        """Trigger impact animation (call when hitting player/wall)."""
+        # trigger impact animation
         if self.impact_start_frame is not None and not self.is_impacting:
             self.is_impacting = True
             self.current_frame = self.impact_start_frame
@@ -74,7 +62,7 @@ class Projectile:
             print(f"[PROJECTILE] Impact triggered at frame {self.impact_start_frame}")
     
     def update(self, platforms=None):
-        """Update projectile position and animation."""
+        # update projectile position and animation
         # If impacting, just play impact animation then die
         if self.is_impacting:
             self._update_impact_animation()
@@ -123,7 +111,7 @@ class Projectile:
             self.alive = False
     
     def _update_impact_animation(self):
-        """Play impact animation frames then die."""
+        # play impact animation then die
         self.animation_timer += self.animation_speed
         if self.animation_timer >= 1.0:
             self.animation_timer = 0
@@ -137,7 +125,7 @@ class Projectile:
                 self.image = self.sprites[self.current_frame]
     
     def _check_wall_collision(self, platforms):
-        """Check if projectile hit a wall/tile."""
+        # check if projectile hit a wall
         # Get front edge of projectile based on direction
         if self.direction > 0:
             front_x = self.rect.right
@@ -155,7 +143,7 @@ class Projectile:
                 break
     
     def check_collision(self, player):
-        """Check collision with player."""
+        # check collision with player
         if not self.alive or not player.alive or self.is_impacting:
             return False
         
@@ -169,7 +157,7 @@ class Projectile:
         return False
     
     def draw(self, surface, camera_offset):
-        """Draw projectile."""
+        # draw projectile
         draw_x = self.rect.x - camera_offset.x
         draw_y = self.rect.y - camera_offset.y
         
@@ -190,12 +178,12 @@ class Projectile:
 
 
 class ProjectileManager:
-    """Manages all projectiles in the game."""
+    # manages all projectiles in the game
     
     _instance = None
     
     def __new__(cls):
-        """Singleton pattern."""
+        # singleton pattern
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.projectiles = []
@@ -204,34 +192,19 @@ class ProjectileManager:
     
     @classmethod
     def get_instance(cls):
-        """Get singleton instance."""
+        # get singleton instance
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
     
     def clear(self):
-        """Clear all projectiles (call on level change)."""
+        # clear all projectiles
         self.projectiles = []
     
     def spawn_projectile(self, x, y, direction, speed=8, damage=10, 
                         sprite_path=None, scale=1.5, max_distance=None,
                         impact_start_frame=None):
-        """
-        Spawn a new projectile.
-        
-        Args:
-            x, y: Starting position
-            direction: 1 for right, -1 for left
-            speed: Movement speed (pixels per frame)
-            damage: Damage on hit
-            sprite_path: Path to projectile sprite folder
-            scale: Sprite scale factor
-            max_distance: Max travel distance before despawn (None = default)
-            impact_start_frame: Frame where impact animation starts
-        
-        Returns:
-            The created Projectile instance
-        """
+        # spawn new projectile
         sprites = []
         
         # Try to load sprites
@@ -267,16 +240,7 @@ class ProjectileManager:
         return projectile
     
     def update(self, player, platforms=None):
-        """
-        Update all projectiles and check collisions.
-        
-        Args:
-            player: Player instance for collision checking
-            platforms: List of platform tiles for wall collision
-        
-        Returns:
-            Total damage dealt to player this frame
-        """
+        # update all projectiles and check collisions
         total_damage = 0
         
         for projectile in self.projectiles[:]:  # Copy list for safe removal
@@ -293,12 +257,12 @@ class ProjectileManager:
         return total_damage
     
     def draw(self, surface, camera_offset):
-        """Draw all projectiles."""
+        # draw all projectiles
         for projectile in self.projectiles:
             projectile.draw(surface, camera_offset)
     
     @property
     def count(self):
-        """Number of active projectiles."""
+        # number of active projectiles
         return len(self.projectiles)
 

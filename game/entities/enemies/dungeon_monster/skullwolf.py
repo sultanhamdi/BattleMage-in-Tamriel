@@ -1,41 +1,22 @@
 import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
 
-# Path aset lokal untuk Skullwolf
 SKULLWOLF_ASSET_PATH = 'assets/graphics/enemies/dungeon_monster/Skullwolf/'
 
 class Skullwolf(BaseEnemy):
-    """
-    Enemy Skullwolf - Fast Predator dengan Pack Hunter Behavior.
+    # fast predator with hit-and-run behavior
     
-    KARAKTERISTIK:
-    - HP: 70 (Medium)
-    - Damage: 18 (Medium-High)
-    - Speed: 4.5 (Very Fast - Fastest ground enemy)
-    - Behavior: Aggressive, fast attacks, hit-and-run tactics
+    # ai constants
+    POUNCE_RANGE = 150
+    RETREAT_DISTANCE = 100
+    ATTACK_COOLDOWN = 60
     
-    ANIMASI:
-    idle(6), attack(9), death(5), hurt(2)
-    
-    SPECIAL ABILITY:
-    - Speed: Fastest ground enemy
-    - Pounce Attack: Leap at player
-    - Hit-and-Run: Attack then retreat quickly
-    """
-    
-    # AI CONSTANTS
-    POUNCE_RANGE = 150       # Distance to start pounce
-    RETREAT_DISTANCE = 100   # Retreat after attack
-    ATTACK_COOLDOWN = 60     # Fast attacks
-    
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 2  # Quick pounce, hit early
+    # attack timing
+    HIT_FRAME = 2
     
     def __init__(self, x, y):
-        """Initialize Skullwolf at position (x, y)."""
         super().__init__(
             x=x, y=y,
-            # GAMEPLAY HITBOX FIX: Minor - Slightly wider for fair hits
             width=60, height=48,
             max_hp=70,
             attack_power=18,
@@ -44,23 +25,21 @@ class Skullwolf(BaseEnemy):
             scale=2.0
         )
         
-        # Combat ranges
+        # combat ranges
         self.detection_range = 450
         self.attack_range = 60
         self.lose_interest_range = 600
         
-        # Hit-and-run mechanics
+        # hit-and-run mechanics
         self.attack_cooldown = 0
         self.is_retreating = False
         self.retreat_counter = 0
-        self.pounce_speed = self.movement_speed * 1.8  # Use movement_speed instead of speed
+        self.pounce_speed = self.movement_speed * 1.8
         
         self._setup_animations()
     
     def _setup_animations(self):
-        """Load animasi Skullwolf."""
-        # Skullwolf uses attack animation for chase/pounce (jumping bite motion)
-        # This gives the predator a more aggressive visual while hunting
+        # skullwolf uses attack animation for chase
         animation_mapping = {
             'idle': 'idle',
             'walk': 'attack',    # Use attack sprite (pouncing motion)
@@ -73,7 +52,6 @@ class Skullwolf(BaseEnemy):
         self.animator.animation_speed = 0.14  # Fast animation
     
     def update(self, platforms):
-        """Override update untuk menggunakan custom AI logic."""
         # 1. Update Timers
         self.update_timers()
         
@@ -120,9 +98,7 @@ class Skullwolf(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """
-        IMPROVED AI: Hit-and-run predator behavior.
-        """
+        # hit-and-run predator behavior
         if not self.alive or not self.player_ref:
             return
         
@@ -184,8 +160,9 @@ class Skullwolf(BaseEnemy):
             # Chase quickly
             self.ai_state = self.STATE_CHASE
             self.physics.velocity_x = self.do_chase()
+
     def do_chase(self):
-        """Override chase with correct facing direction."""
+        # chase with correct facing
         direction = self.get_direction_to_player()
         
         # Only update facing if X distance is significant (threshold 10px)
@@ -198,7 +175,7 @@ class Skullwolf(BaseEnemy):
         return direction * self.movement_speed
     
     def do_patrol(self):
-        """Override patrol with correct facing direction."""
+        # patrol with correct facing
         # Check patrol bounds
         if self.rect.x > self.spawn_x + self.patrol_distance:
             self.patrol_direction = -1  # Go left
@@ -210,8 +187,7 @@ class Skullwolf(BaseEnemy):
         return self.patrol_direction * self.patrol_speed
     
     def do_attack(self):
-        """Override attack - pounce attack."""
-        # Guard: only attack if not already attacking
+        # pounce attack
         if self.is_attacking:
             return
             
@@ -227,7 +203,7 @@ class Skullwolf(BaseEnemy):
         self.retreat_counter = 30  # Retreat for 30 frames after attack animation
     
     def take_damage(self, amount, apply_stun=False):
-        """Override take damage - agile, can dodge."""
+        # agile retreat after damage
         super().take_damage(amount, apply_stun=apply_stun)
         if self.alive:
             # Quick retreat after taking damage

@@ -3,27 +3,19 @@ import random
 from game.entities.enemies.enemy import BaseEnemy
 from game.utils.projectile import ProjectileManager
 
-# Path aset
 SKELETON_ASSET_PATH = 'assets/graphics/enemies/grass_monster/Skeleton/'
 SKELETON_PROJECTILE_PATH = 'assets/graphics/enemies/grass_monster/Skeleton/projectile/'
 
 class Skeleton(BaseEnemy):
-    """
-    Enemy Skeleton - Defensive warrior with shield and bone throw.
+    # defensive warrior with shield and bone throw
     
-    BEHAVIOR:
-    - Can block when HP low
-    - 2 bone throws then must melee
-    - Throws bone during 'range' animation
-    """
+    BONE_COOLDOWN = 600
+    SHIELD_TRIGGER_HITS = 3
+    SHIELD_COOLDOWN = 900
+    SHIELD_DAMAGE_REDUCTION = 0.5
     
-    BONE_COOLDOWN = 600  # 10 seconds at 60fps
-    SHIELD_TRIGGER_HITS = 3  # Shield after 3 hits (BOD pattern)
-    SHIELD_COOLDOWN = 900  # 15 seconds
-    SHIELD_DAMAGE_REDUCTION = 0.5  # 50% damage reduction
-    
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 5  # Slightly later attack hit
+    # attack timing
+    HIT_FRAME = 5
     
     def __init__(self, x, y):
         super().__init__(
@@ -95,7 +87,6 @@ class Skeleton(BaseEnemy):
 
     
     def update(self, platforms):
-        """Update following Skullwolf pattern."""
         # 1. Update Timers
         self.update_timers()
         
@@ -152,7 +143,6 @@ class Skeleton(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """AI State Machine - Skeleton."""
         if not self.player_ref or not self.alive:
             self.ai_state = self.STATE_IDLE
             self.physics.velocity_x = 0
@@ -280,7 +270,7 @@ class Skeleton(BaseEnemy):
         print(f"[SKELETON] Bone thrown! ({self.bone_count + 1}/{self.max_bones})")
     
     def take_damage(self, amount, apply_stun=False):
-        """Override take_damage - BOD-style hit counter for shield trigger."""
+        # hit counter for shield trigger
         # Damage reduction during shield
         if self.is_shielding:
             reduced = int(amount * self.SHIELD_DAMAGE_REDUCTION)

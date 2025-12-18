@@ -41,7 +41,7 @@ class HUD:
         # self.draw_shine_effect()
 
     def draw_shine_effect(self, surface):
-        """Draws a passing shine/sheen over the bar (Local Coordinates)"""
+        # draw passing shine over bar
         current_time = pg.time.get_ticks()
         
         # Shine Cycle (every 3 seconds)
@@ -78,7 +78,7 @@ class HUD:
             pg.draw.polygon(surface, (255, 255, 255, 150), shine_poly)
 
     def draw_slanted_rect(self, surface, color, x, y, w, h):
-        """Helper to draw a parallelogram on a surface (Local coords)"""
+        # draw parallelogram
         skew = 10 
         points = [
             (x + skew, y),          # Top Left

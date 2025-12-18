@@ -3,27 +3,19 @@ import math
 from game.entities.enemies.enemy import BaseEnemy
 from game.utils.projectile import ProjectileManager
 
-# Path aset
 FLYING_EYE_ASSET_PATH = 'assets/graphics/enemies/grass_monster/Flying eye/'
 FLYING_EYE_PROJECTILE_PATH = 'assets/graphics/enemies/grass_monster/Flying eye/projectile/'
 
 class FlyingEye(BaseEnemy):
-    """
-    Enemy Flying Eye - Flying Ranged Attacker.
+    # flying ranged attacker
     
-    BEHAVIOR:
-    - Flies (floats, no gravity)
-    - 3 range attacks then must melee
-    - Fires projectile during 'range' animation
-    """
-    
-    # Constants
+    # constants
     HOVER_AMPLITUDE = 15
     HOVER_FREQUENCY = 0.08
-    PROJECTILE_COOLDOWN = 600  # 10 seconds at 60fps
+    PROJECTILE_COOLDOWN = 600
     
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 4  # Mid-swing melee hit
+    # attack timing
+    HIT_FRAME = 4
     
     def __init__(self, x, y):
         super().__init__(
@@ -89,7 +81,6 @@ class FlyingEye(BaseEnemy):
         self.animator.animation_speed = 0.15
     
     def update(self, platforms):
-        """Update following Skullwolf pattern with flying mechanics."""
         # 1. Update Timers
         self.update_timers()
         
@@ -145,7 +136,6 @@ class FlyingEye(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """AI State Machine - Flying ranged attacker."""
         if not self.player_ref or not self.alive:
             self.ai_state = self.STATE_IDLE
             self.physics.velocity_x = 0

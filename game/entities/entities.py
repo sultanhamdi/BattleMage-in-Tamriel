@@ -2,47 +2,42 @@ import pygame as pg
 from game.components.physics import PhysicsComponent
 
 class Entity(pg.sprite.Sprite):
-    """
-    Parent Class (Blueprint) untuk semua makhluk hidup (Player & Enemy).
-    Hanya menangani Logika, Fisika, dan Data. Tidak menangani Gambar/Input.
-    """
     def __init__(self, x, y, width, height, max_hp, attack_power, speed):
         super().__init__()
         
-        # KOMPONEN FISIKA & POSISI
+        # rect & physics
         self.rect = pg.Rect(x, y, width, height)
         self.physics = PhysicsComponent(self.rect)
         
-        # STATS (Diterima dari Child)
+        # stats
         self.max_hp = max_hp
         self.current_hp = max_hp
         self.attack_power = attack_power
         self.movement_speed = speed 
         self.alive = True
         
-        # STATE ANIMASI (String)
+        # state
         self.state = 'idle' 
         self.facing_right = True 
         
-        # SISTEM COMBAT (Cooldown & I-Frames)
+        # combat mechanics
         self.is_attacking = False
-        self.attack_cooldown = 500 # ms (Jeda antar serangan)
+        self.attack_cooldown = 500 # ms
         self.last_attack_time = 0
         
         self.is_invincible = False
-        self.invincibility_duration = 300 # ms (Reduced for combo attacks to work)
+        self.invincibility_duration = 300 # ms 
         self.last_hit_time = 0
 
     def update_timers(self):
-        """Mengurus perhitungan waktu cooldown dan efek status"""
         current_time = pg.time.get_ticks()
         
-        # Reset Status Kebal (Invincible)
+        # Invincible
         if self.is_invincible:
             if current_time - self.last_hit_time > self.invincibility_duration:
                 self.is_invincible = False
 
-        # Reset Status Serang (Attack)
+        # attack cooldown
         if self.is_attacking:
             if current_time - self.last_attack_time > 400: 
                 self.is_attacking = False
@@ -50,7 +45,6 @@ class Entity(pg.sprite.Sprite):
                     self.state = 'idle'
 
     def take_damage(self, amount):
-        """Logika umum menerima damage"""
         if not self.alive or self.is_invincible:
             return
 
@@ -65,10 +59,8 @@ class Entity(pg.sprite.Sprite):
             self.die()
 
     def attack(self):
-        """Mencoba menyerang (hanya set state, logika hitbox nanti di Child/GameScreen)"""
         current_time = pg.time.get_ticks()
         
-        # Hanya bisa serang jika hidup dan cooldown selesai
         if not self.is_attacking and self.alive:
             if current_time - self.last_attack_time > self.attack_cooldown:
                 self.is_attacking = True
@@ -79,15 +71,10 @@ class Entity(pg.sprite.Sprite):
         return False
 
     def die(self):
-        """Logika dasar kematian"""
         self.alive = False
         self.current_hp = 0
         self.state = 'death'
         print(f"[DEATH] {type(self).__name__} has died.")
 
     def update(self, platforms):
-        """
-        Wajib dipanggil oleh Child Class via super().update()
-        untuk menjalankan timer cooldown.
-        """
         self.update_timers()

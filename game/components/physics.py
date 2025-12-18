@@ -1,8 +1,7 @@
 import pygame as pg
 
-# Fisika 
+# physics constants
 GRAVITY = 0.8
-# [PERBAIKAN] Naikkan dari -16 ke -22 agar bisa naik ke platform setinggi 180-200px
 JUMP_STRENGTH = -22 
 TERMINAL_VELOCITY = 15
 
@@ -13,8 +12,7 @@ class PhysicsComponent:
         self.on_ground = False
         self.facing_right = True
         
-        # [PERBAIKAN] Simpan posisi akurat (float) terpisah dari rect
-        # Ini penting agar nilai koma (0.8) tidak hilang saat gerak lambat
+        # float position for accurate movement
         self.pos = pg.Vector2(rect.x, rect.y)
 
     def apply_gravity(self):
@@ -23,7 +21,7 @@ class PhysicsComponent:
             self.velocity.y = TERMINAL_VELOCITY
 
     def move_and_collide(self, platforms, x_velocity):
-        # SAFETY: Store old position
+        # store old position
         old_x = self.rect.x
         old_y = self.rect.y
         
@@ -31,8 +29,7 @@ class PhysicsComponent:
         self.pos.x += x_velocity
         self.rect.x = round(self.pos.x) # Update rect visual dari posisi float
         
-        # SAFETY: Prevent glitch teleports (max 200 pixels per frame)
-        # Increased to 200 to allow GameManager's attack_range push (approx 80-140px)
+        # prevent glitch teleports
         MAX_DELTA = 200
         delta_x = self.rect.x - old_x
         if abs(delta_x) > MAX_DELTA:
@@ -40,7 +37,7 @@ class PhysicsComponent:
             self.rect.x = old_x
             self.pos.x = float(old_x)
         
-        # Update arah hadap (untuk animasi)
+        # update facing direction
         if x_velocity > 0:
             self.facing_right = True
         elif x_velocity < 0:
@@ -52,7 +49,7 @@ class PhysicsComponent:
                     self.rect.right = platform.left
                 if x_velocity < 0: # Ke Kiri
                     self.rect.left = platform.right
-                # Sinkronkan kembali posisi float agar tidak tembus
+                # sync float position
                 self.pos.x = self.rect.x
         
         # 2. Gerakan Vertikal
@@ -60,7 +57,7 @@ class PhysicsComponent:
         self.pos.y += self.velocity.y
         self.rect.y = round(self.pos.y) # Update rect visual dari posisi float
         
-        # SAFETY: Clamp Y delta too
+        # clamp y delta
         delta_y = self.rect.y - old_y
         if abs(delta_y) > MAX_DELTA:
             self.rect.y = old_y
@@ -77,7 +74,7 @@ class PhysicsComponent:
                     self.rect.top = platform.bottom
                     self.velocity.y = 0
                 
-                # Sinkronkan kembali posisi float ke posisi rect yang baru (setelah tabrakan)
+                # sync float position after collision
                 self.pos.y = self.rect.y
 
     def jump(self):

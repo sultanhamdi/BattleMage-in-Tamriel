@@ -1,37 +1,19 @@
 import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
 
-# Path aset lokal untuk Ice Skeleton
 ICE_SKELETON_ASSET_PATH = 'assets/graphics/enemies/ice_monster/Skeleton/'
 
 class IceSkeleton(BaseEnemy):
-    """
-    Enemy Ice Skeleton - Undead Warrior dengan React Ability.
+    # undead warrior with react ability
     
-    KARAKTERISTIK:
-    - HP: 75 (Medium-High)
-    - Damage: 18 (Medium-High)
-    - Speed: 2.5 (Medium)
-    - Behavior: Reactive fighter, counter-attacks when hit
+    # ai constants
+    REACT_COOLDOWN = 90
+    DAMAGE_REDUCTION = 0.85
     
-    ANIMASI (dari folder assets):
-    Attack, Dead, Hit, Idle, React, Walk
-    
-    SPECIAL ABILITY:
-    - React: Counter-attack animation setelah terkena hit
-    - Undead Resilience: Reduced damage from normal attacks
-    - Cold Aura: Presence in ice areas
-    """
-    
-    # AI CONSTANTS
-    REACT_COOLDOWN = 90       # Frames antara react
-    DAMAGE_REDUCTION = 0.85   # Takes 85% damage (undead resilience)
-    
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 6  # Attack frame 6
+    # attack timing
+    HIT_FRAME = 6
     
     def __init__(self, x, y):
-        """Initialize Ice Skeleton at position (x, y)."""
         super().__init__(
             x=x, y=y,
             # GAMEPLAY HITBOX: Wider for fair hits
@@ -62,7 +44,6 @@ class IceSkeleton(BaseEnemy):
         self._setup_animations()
     
     def _setup_animations(self):
-        """Load animasi Ice Skeleton."""
         animation_mapping = {
             'idle': 'Idle',
             'walk': 'Walk',
@@ -76,7 +57,6 @@ class IceSkeleton(BaseEnemy):
         self.animator.animation_speed = 0.15  # Responsive/Fast (matches Skullwolf)
     
     def update(self, platforms):
-        """Update with EXACT GOBLIN PATTERN (PROVEN WORKING)."""
         # 1. Update Timers
         self.update_timers()
         
@@ -133,7 +113,6 @@ class IceSkeleton(BaseEnemy):
         self.rect = self.physics.rect
 
     def _update_ai(self):
-        """Standardized AI State Machine."""
         if not self.player_ref or not self.alive:
             self.ai_state = self.STATE_IDLE
             self.physics.velocity_x = 0
@@ -190,7 +169,7 @@ class IceSkeleton(BaseEnemy):
         self.physics.velocity_x = direction * self.movement_speed
     
     def take_damage(self, amount, apply_stun=False):
-        """Override take damage - trigger react and apply resistance."""
+        # trigger react and apply resistance
         if not self.alive or self.is_invincible:
             return
         

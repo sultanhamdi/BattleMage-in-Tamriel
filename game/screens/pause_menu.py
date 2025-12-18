@@ -1,8 +1,11 @@
+# pause menu during gameplay
+# triggered by ESC key
+
 import pygame as pg
 import random
 from game.settings import *
 
-
+# menu styling (match main_menu.py)
 MENU_BG_COLOR = (15, 12, 25)
 MENU_TITLE_COLOR = (220, 180, 100)
 MENU_TEXT_COLOR = (200, 200, 210)
@@ -10,42 +13,31 @@ MENU_HOVER_COLOR = (255, 220, 130)
 MENU_SHADOW_COLOR = (0, 0, 0)
 MENU_DISABLED_COLOR = (80, 80, 90)
 
-TITLE_Y_POS = 120
-MENU_START_Y = 300
-MENU_ITEM_SPACING = 65
 BUTTON_WIDTH = 320
 BUTTON_HEIGHT = 55
 
 
-
-class MainMenu:
-    # main menu 
-    STATE_MAIN = "main"
-    STATE_START = "start"
-    STATE_GUIDE = "guide"
-    STATE_SETTINGS = "settings"
+class PauseMenu:
+    # pause menu overlay during gameplay
     
-    def __init__(self, screen):
+    STATE_MAIN = "main"
+    STATE_SETTINGS = "settings"
+    STATE_GUIDE = "guide"
+    
+    def __init__(self, screen, audio_manager=None):
         self.screen = screen
-        self.clock = pg.time.Clock()
-        self.running = True
+        self.audio_manager = audio_manager
+        self.is_paused = False
         
         self.current_state = self.STATE_MAIN
         self.selected_index = 0
-        self.has_save_game = False
         
-        # Menu items: (label, action, enabled)
-        self.main_menu = [
-            ("Start", "start", True),
+        # menu items: (label, action, enabled)
+        self.pause_menu = [
+            ("Resume", "resume", True),
             ("Guide", "guide", True),
             ("Settings", "settings", True),
-            ("Quit", "quit", True)
-        ]
-        
-        self.start_menu = [
-            ("Continue", "continue", False),  # Disabled tanpa save
-            ("New Game", "new_game", True),
-            ("Back", "back", True)
+            ("Exit to Menu", "exit_menu", True),
         ]
         
         self.settings_menu = [
@@ -54,6 +46,7 @@ class MainMenu:
             ("Back", "back", True)
         ]
         
+        # guide content (controls)
         self.guide_lines = [
             "=== CONTROLS ===",
             "",
@@ -73,22 +66,20 @@ class MainMenu:
             "Press [ESC] or Click to return"
         ]
         
-        # Fonts
-        self.title_font = pg.font.Font(None, 90)
+        # fonts
+        self.title_font = pg.font.Font(None, 72)
         self.menu_font = pg.font.Font(None, 48)
         self.small_font = pg.font.Font(None, 30)
         self.guide_font = pg.font.Font(None, 32)
         
-        # Animation
-        self.title_offset = 0
-        self.title_dir = 1
+        # animation
         self.pulse = 0
         self.pulse_dir = 1
         
-        # Particles
-        self.particles = self._init_particles(40)
+        # particles
+        self.particles = self._init_particles(25)
         
-        # Button rects untuk mouse
+        # button rects for mouse
         self.button_rects = []
     
     def _init_particles(self, count):
@@ -115,9 +106,6 @@ class MainMenu:
             self.screen.blit(surf, (p['x'], p['y']))
     
     def _update_anims(self):
-        self.title_offset += 0.05 * self.title_dir
-        if abs(self.title_offset) > 4:
-            self.title_dir *= -1
         self.pulse += 2 * self.pulse_dir
         if self.pulse > 25 or self.pulse < 0:
             self.pulse_dir *= -1
@@ -134,7 +122,7 @@ class MainMenu:
         rect = pg.Rect(cx - BUTTON_WIDTH//2, y - BUTTON_HEIGHT//2, BUTTON_WIDTH, BUTTON_HEIGHT)
         self.button_rects.append((rect, enabled))
         
-        # Colors
+        # colors
         if not enabled:
             txt_col, bdr_col = MENU_DISABLED_COLOR, MENU_DISABLED_COLOR
         elif selected:
@@ -142,76 +130,74 @@ class MainMenu:
         else:
             txt_col, bdr_col = MENU_TEXT_COLOR, GRAY
         
-        # Glow
+        # glow
         if selected and enabled:
             glow = pg.Surface((BUTTON_WIDTH+16, BUTTON_HEIGHT+16), pg.SRCALPHA)
             pg.draw.rect(glow, (*MENU_HOVER_COLOR[:3], 40 + self.pulse), (0,0,BUTTON_WIDTH+16,BUTTON_HEIGHT+16), border_radius=10)
             self.screen.blit(glow, (rect.x-8, rect.y-8))
         
-        # Background
+        # background
         bg = pg.Surface((BUTTON_WIDTH, BUTTON_HEIGHT), pg.SRCALPHA)
         pg.draw.rect(bg, (25, 22, 40, 200), (0, 0, BUTTON_WIDTH, BUTTON_HEIGHT), border_radius=8)
         self.screen.blit(bg, rect)
         
-        # Border
+        # border
         pg.draw.rect(self.screen, bdr_col, rect, 2, border_radius=8)
         
-        # Text
+        # text
         self._text_shadow(text, self.menu_font, txt_col, (cx, y))
         
-        # Arrow
+        # arrow
         if selected and enabled:
             pts = [(rect.left-25, y), (rect.left-40, y-10), (rect.left-40, y+10)]
             pg.draw.polygon(self.screen, MENU_HOVER_COLOR, pts)
     
     def _draw_title(self):
-        y = TITLE_Y_POS + self.title_offset
-        self._text_shadow("BATTLEMAGE", self.title_font, MENU_TITLE_COLOR, (WINDOW_WIDTH//2, y), 4)
-        self._text_shadow("IN TAMRIEL", self.small_font, MENU_TEXT_COLOR, (WINDOW_WIDTH//2, y+50), 2)
+        if self.current_state == self.STATE_GUIDE:
+            self._text_shadow("GUIDE", self.title_font, MENU_TITLE_COLOR, (WINDOW_WIDTH//2, 90), 3)
+            return
+
+        self._text_shadow("PAUSED", self.title_font, MENU_TITLE_COLOR, (WINDOW_WIDTH//2, 150), 4)
         
-        # Decorative line
-        cy = TITLE_Y_POS + 90
-        pg.draw.line(self.screen, (70, 55, 90), (WINDOW_WIDTH//2-200, cy), (WINDOW_WIDTH//2-40, cy), 2)
-        pg.draw.line(self.screen, (70, 55, 90), (WINDOW_WIDTH//2+40, cy), (WINDOW_WIDTH//2+200, cy), 2)
+        # decorative line
+        cy = 200
+        pg.draw.line(self.screen, (70, 55, 90), (WINDOW_WIDTH//2-150, cy), (WINDOW_WIDTH//2-40, cy), 2)
+        pg.draw.line(self.screen, (70, 55, 90), (WINDOW_WIDTH//2+40, cy), (WINDOW_WIDTH//2+150, cy), 2)
         diamond = [(WINDOW_WIDTH//2, cy-7), (WINDOW_WIDTH//2+7, cy), (WINDOW_WIDTH//2, cy+7), (WINDOW_WIDTH//2-7, cy)]
         pg.draw.polygon(self.screen, MENU_TITLE_COLOR, diamond)
     
     def _draw_footer(self):
-        hint = self.small_font.render("Mouse Click / [W][S] Navigate / [ENTER] Select", True, GRAY)
+        hint = self.small_font.render("Mouse Click / [W][S] Navigate / [ENTER] Select / [ESC] Resume", True, GRAY)
         self.screen.blit(hint, hint.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT-35)))
     
     def _get_menu(self):
         if self.current_state == self.STATE_MAIN:
-            return self.main_menu
-        elif self.current_state == self.STATE_START:
-            return self.start_menu
+            return self.pause_menu
         elif self.current_state == self.STATE_SETTINGS:
             return self.settings_menu
         return []
     
     def _draw_menu_items(self, items, title=None):
         self.button_rects = []
-        start_y = MENU_START_Y
+        start_y = 300
         
         if title:
             self._text_shadow(title, self.menu_font, MENU_TEXT_COLOR, (WINDOW_WIDTH//2, start_y - 60), 2)
+            start_y += 20
         
         for i, (label, action, enabled) in enumerate(items):
-            y = start_y + i * MENU_ITEM_SPACING
+            y = start_y + i * 70
             self._draw_button(label, y, i == self.selected_index, enabled)
     
     def _draw_guide(self):
-        # Panel
+        # panel
         panel = pg.Rect(80, 130, WINDOW_WIDTH-160, WINDOW_HEIGHT-200)
         bg = pg.Surface((panel.width, panel.height), pg.SRCALPHA)
         pg.draw.rect(bg, (20, 18, 35, 240), (0, 0, panel.width, panel.height), border_radius=12)
         self.screen.blit(bg, panel)
         pg.draw.rect(self.screen, MENU_TITLE_COLOR, panel, 2, border_radius=12)
         
-        # Title
-        self._text_shadow("GUIDE", self.title_font, MENU_TITLE_COLOR, (WINDOW_WIDTH//2, 90), 3)
-        
-        # Content
+        # content
         y = 180
         for line in self.guide_lines:
             if line.startswith("==="):
@@ -224,25 +210,25 @@ class MainMenu:
             txt = self.guide_font.render(line, True, color)
             self.screen.blit(txt, txt.get_rect(center=(WINDOW_WIDTH//2, y)))
             y += 35
-    
-    def draw(self):
-        self.screen.fill(MENU_BG_COLOR)
-        self._draw_particles()
+
+    def draw(self, game_surface=None):
+        # draw semi-transparent overlay over game
+        overlay = pg.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pg.SRCALPHA)
+        # darken the background slightly (200/255 alpha)
+        overlay.fill((15, 12, 25, 230))
+        self.screen.blit(overlay, (0, 0))
         
-        if self.current_state == self.STATE_GUIDE:
+        self._draw_particles()
+        self._draw_title()
+        
+        if self.current_state == self.STATE_MAIN:
+            self._draw_menu_items(self.pause_menu)
+        elif self.current_state == self.STATE_SETTINGS:
+            self._draw_menu_items(self.settings_menu, "- SETTINGS -")
+        elif self.current_state == self.STATE_GUIDE:
             self._draw_guide()
-        else:
-            self._draw_title()
-            
-            if self.current_state == self.STATE_MAIN:
-                self._draw_menu_items(self.main_menu)
-            elif self.current_state == self.STATE_START:
-                self._draw_menu_items(self.start_menu, "- START GAME -")
-            elif self.current_state == self.STATE_SETTINGS:
-                self._draw_menu_items(self.settings_menu, "- SETTINGS -")
         
         self._draw_footer()
-        pg.display.flip()
     
     def _select_item(self):
         items = self._get_menu()
@@ -253,97 +239,98 @@ class MainMenu:
         if not enabled:
             return None
         
-        # Handle actions
-        if action == "start":
-            self.current_state = self.STATE_START
-            self.selected_index = 1  # New Game
+        # handle actions
+        if action == "resume":
+            return "resume"
         elif action == "guide":
             self.current_state = self.STATE_GUIDE
         elif action == "settings":
             self.current_state = self.STATE_SETTINGS
-            self.selected_index = 2  # Back
+            self.selected_index = 2  # back
         elif action == "back":
             self.current_state = self.STATE_MAIN
             self.selected_index = 0
-        elif action == "new_game":
-            return "new_game"
-        elif action == "continue":
-            return "continue"
-        elif action == "quit":
-            return "quit"
+        elif action == "exit_menu":
+            return "exit_menu"
         elif action == "music":
-            # Toggle (placeholder)
-            self.settings_menu[0] = ("Music: OFF" if "ON" in label else "Music: ON", "music", True)
+            if self.audio_manager:
+                is_on = self.audio_manager.toggle_music()
+                self.settings_menu[0] = (f"Music: {'ON' if is_on else 'OFF'}", "music", True)
+            else:
+                self.settings_menu[0] = ("Music: OFF" if "ON" in label else "Music: ON", "music", True)
+                
         elif action == "sfx":
-            self.settings_menu[1] = ("SFX: OFF" if "ON" in label else "SFX: ON", "sfx", True)
+            if self.audio_manager:
+                is_on = self.audio_manager.toggle_sfx()
+                self.settings_menu[1] = (f"SFX: {'ON' if is_on else 'OFF'}", "sfx", True)
+            else:
+                self.settings_menu[1] = ("SFX: OFF" if "ON" in label else "SFX: ON", "sfx", True)
         
         return None
     
-    def handle_events(self):
+    def handle_event(self, event):
+        # returns action: "resume", "exit_menu", or None
+        if self.current_state == self.STATE_GUIDE:
+            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                self.current_state = self.STATE_MAIN
+                self.selected_index = 0
+                return None
+            if event.type == pg.MOUSEBUTTONDOWN:
+                self.current_state = self.STATE_MAIN
+                self.selected_index = 0
+                return None
+            return None
+
         mouse_pos = pg.mouse.get_pos()
         
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                return "quit"
-            
-            # Mouse hover
-            if event.type == pg.MOUSEMOTION and self.current_state != self.STATE_GUIDE:
-                for i, (rect, enabled) in enumerate(self.button_rects):
-                    if rect.collidepoint(mouse_pos):
-                        self.selected_index = i
-                        break
-            
-            # Mouse click
-            if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
-                if self.current_state == self.STATE_GUIDE:
+        # mouse hover
+        if event.type == pg.MOUSEMOTION:
+            for i, (rect, enabled) in enumerate(self.button_rects):
+                if rect.collidepoint(mouse_pos):
+                    self.selected_index = i
+                    break
+        
+        # mouse click
+        if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+            for i, (rect, enabled) in enumerate(self.button_rects):
+                if rect.collidepoint(mouse_pos) and enabled:
+                    self.selected_index = i
+                    result = self._select_item()
+                    if result:
+                        return result
+                    break
+        
+        # keyboard
+        if event.type == pg.KEYDOWN:
+            # ESC = resume (back to game)
+            if event.key == pg.K_ESCAPE:
+                if self.current_state != self.STATE_MAIN:
                     self.current_state = self.STATE_MAIN
                     self.selected_index = 0
                 else:
-                    for i, (rect, enabled) in enumerate(self.button_rects):
-                        if rect.collidepoint(mouse_pos) and enabled:
-                            self.selected_index = i
-                            result = self._select_item()
-                            if result:
-                                return result
-                            break
+                    return "resume"
             
-            # Keyboard
-            if event.type == pg.KEYDOWN:
-                # ESC only goes back to main menu from sub-menus (not quit)
-                if event.key == pg.K_ESCAPE:
-                    if self.current_state != self.STATE_MAIN:
-                        self.current_state = self.STATE_MAIN
-                        self.selected_index = 0
-                    # removed: ESC no longer quits from main menu
-                
-                if self.current_state != self.STATE_GUIDE:
-                    items = self._get_menu()
-                    if event.key in (pg.K_UP, pg.K_w):
-                        self.selected_index = (self.selected_index - 1) % len(items)
-                    elif event.key in (pg.K_DOWN, pg.K_s):
-                        self.selected_index = (self.selected_index + 1) % len(items)
-                    elif event.key in (pg.K_RETURN, pg.K_SPACE):
-                        result = self._select_item()
-                        if result:
-                            return result
+            items = self._get_menu()
+            if event.key in (pg.K_UP, pg.K_w):
+                self.selected_index = (self.selected_index - 1) % len(items)
+            elif event.key in (pg.K_DOWN, pg.K_s):
+                self.selected_index = (self.selected_index + 1) % len(items)
+            elif event.key in (pg.K_RETURN, pg.K_SPACE):
+                result = self._select_item()
+                if result:
+                    return result
         
         return None
     
-    def run(self):
-        while self.running:
-            action = self.handle_events()
-            if action:
-                return action
-            self._update_anims()
-            self.draw()
-            self.clock.tick(FPS)
-        return "quit"
-
-
-if __name__ == "__main__":
-    pg.init()
-    screen = pg.display.set_mode(WINDOW_SIZE)
-    pg.display.set_caption(TITLE)
-    menu = MainMenu(screen)
-    print(f"Result: {menu.run()}")
-    pg.quit()
+    def update(self):
+        self._update_anims()
+    
+    def show(self):
+        # called when pause is triggered
+        self.is_paused = True
+        self.current_state = self.STATE_MAIN
+        self.selected_index = 0
+    
+    def hide(self):
+        # called when resuming
+        self.is_paused = False

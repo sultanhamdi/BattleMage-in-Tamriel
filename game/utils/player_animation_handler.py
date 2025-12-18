@@ -46,7 +46,7 @@ class PlayerAnimationHandler:
             print(f"[CRITICAL ERROR] {e}")
 
     def load_custom_animation(self, name, custom_width, custom_height):
-        """Memuat animasi dengan ukuran frame khusus (Override default)"""
+        # load animation with custom frame size
         full_path = f"{self.path}/{name}.png"
         if not os.path.exists(full_path):
             print(f"[WARNING] File tidak ada: {name}.png")

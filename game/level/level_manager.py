@@ -63,10 +63,7 @@ class LevelManager:
             print(f"[ERROR] Failed to load tileset: {e}")
 
     def create_world_background(self, width, height, tile_char=None):
-        """
-        Creates a world-sized background.
-        Tiles the theme's background image.
-        """
+        # create world-sized background
         bg_surface = pg.Surface((width, height))
 
         # Tile using theme background image
@@ -97,7 +94,7 @@ class LevelManager:
             return bg_surface
 
     def load_tmx(self, filepath):
-        """Loads a Tiled .tmx file (XML format)"""
+        # load tiled tmx file
         print(f"[INFO] Loading TMX: {filepath}")
         try:
             tree = ET.parse(filepath)
@@ -241,5 +238,5 @@ class LevelManager:
             return [], [], (0,0), None, [], []
 
     def create_level(self):
-        """Load current level from TMX file"""
+        # load current level from tmx
         return self.load_tmx(self.level_map)

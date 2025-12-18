@@ -4,7 +4,7 @@ from game.entities.enemies.enemy import BaseEnemy
 GOBLIN_ASSET_PATH = 'assets/graphics/enemies/grass_monster/Goblin/'
 
 class Goblin(BaseEnemy):
-    """Goblin - Fast melee fighter with combo attacks."""
+    # fast melee fighter with combo attacks
     
     HIT_FRAME = 4
     

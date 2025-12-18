@@ -1,38 +1,20 @@
 import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
 
-# Path aset lokal untuk Ice Guardian
 GUARDIAN_ASSET_PATH = 'assets/graphics/enemies/ice_monster/guardian/'
 
 class Guardian(BaseEnemy):
-    """
-    Enemy Ice Guardian - Elite Ice Warrior dengan Combo Attacks.
+    # elite ice warrior with combo attacks
     
-    KARAKTERISTIK:
-    - HP: 90 (High)
-    - Damage: 20 (High)
-    - Speed: 3.2 (Moderate-Fast)
-    - Behavior: Elite warrior, combo attacks, freezing aura
-    
-    ANIMASI:
-    idle(4), walk(8), attack(12), death(14), hurt(3)
-    
-    SPECIAL ABILITY:
-    - Combo Attacks: Can chain multiple attacks
-    - Ice Aura: Slows player when nearby
-    - Elite Warrior: Balanced stats, skilled fighter
-    """
-    
-    # AI CONSTANTS
-    COMBO_RANGE = 70         # Range for combo
-    AURA_RANGE = 120         # Slow aura range
+    # ai constants
+    COMBO_RANGE = 70
+    AURA_RANGE = 120
     COMBO_COOLDOWN = 120
     
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 11  # Late spear thrust
+    # attack timing
+    HIT_FRAME = 11
     
     def __init__(self, x, y):
-        """Initialize Ice Guardian at position (x, y)."""
         super().__init__(
             x=x, y=y,
             # FIXED HITBOX: Adjusted for leaner fit but consistent height
@@ -68,7 +50,6 @@ class Guardian(BaseEnemy):
         self._setup_animations()
     
     def _setup_animations(self):
-        """Load animasi Ice Guardian."""
         animation_mapping = {
             'idle': 'idle',
             'walk': 'walk',
@@ -81,7 +62,6 @@ class Guardian(BaseEnemy):
         self.animator.animation_speed = 0.15  # Match Demon Slime for consistent timing
     
     def update(self, platforms):
-        """Update with EXACT GOBLIN PATTERN (PROVEN WORKING)."""
         # 1. Update Timers
         self.update_timers()
         
@@ -123,9 +103,7 @@ class Guardian(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """
-        SIMPLIFIED AI: Direct attack like Skullwolf (no complex combos).
-        """
+        # simple direct attack ai
         if not self.alive or not self.player_ref:
             return
             
@@ -164,10 +142,9 @@ class Guardian(BaseEnemy):
         self.physics.velocity_x = direction * self.movement_speed
     
     def do_attack(self):
-        """Simple attack - no combos."""
+        # simple attack
         super().do_attack()
         print(f"[ICE GUARDIAN] ATTACKS!")
     
     def take_damage(self, amount, apply_stun=False):
-        """Override take damage."""
         super().take_damage(amount, apply_stun=apply_stun)

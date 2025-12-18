@@ -1,39 +1,20 @@
 import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
 
-# Path aset lokal untuk Ice Golem
 GOLEM_ASSET_PATH = 'assets/graphics/enemies/ice_monster/golem/'
 
 class Golem(BaseEnemy):
-    """
-    Enemy Ice Golem - Super Tank dengan Slam Attack.
+    # super tank with slam attack
     
-    KARAKTERISTIK:
-    - HP: 120 (Very High)
-    - Damage: 28 (Very High)
-    - Speed: 1.5 (Very Slow)
-    - Behavior: Tank, ground slam, appear animation
+    # ai constants
+    SLAM_RANGE = 90
+    SLAM_COOLDOWN = 200
+    DAMAGE_REDUCTION = 0.75
     
-    ANIMASI:
-    idle(4), walk(12), attack(12), die(15), hurt(5)
-    
-    SPECIAL ABILITY:
-    - Tank: Highest defense, very high HP
-    - Ground Slam: AOE attack that stuns
-    - Appear Animation: Rises from ground when spawned
-    - Slow but Unstoppable
-    """
-    
-    # AI CONSTANTS
-    SLAM_RANGE = 90          # Wide slam range
-    SLAM_COOLDOWN = 200      # Slow but devastating
-    DAMAGE_REDUCTION = 0.75  # Takes only 75% damage
-    
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 6  # Ground slam impact
+    # attack timing
+    HIT_FRAME = 6
     
     def __init__(self, x, y):
-        """Initialize Ice Golem at position (x, y)."""
         super().__init__(
             x=x, y=y,
             # FIXED HITBOX: Increased to match large sprite (scale 2.6)
@@ -71,7 +52,6 @@ class Golem(BaseEnemy):
         self.ai_state = self.STATE_APPEAR
     
     def _setup_animations(self):
-        """Load animasi Ice Golem."""
         animation_mapping = {
             'idle': 'idle',
             'walk': 'walk',
@@ -85,7 +65,6 @@ class Golem(BaseEnemy):
         self.animator.animation_speed = 0.15  # Match Demon Slime for consistent timing
     
     def update(self, platforms):
-        """Update with EXACT GOBLIN PATTERN (PROVEN WORKING)."""
         # 1. Update Timers
         self.update_timers()
         
@@ -142,9 +121,7 @@ class Golem(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """
-        IMPROVED AI: Tank behavior - slow but unstoppable.
-        """
+        # tank behavior - slow but unstoppable
         if not self.alive or not self.player_ref:
             return
             
@@ -183,13 +160,13 @@ class Golem(BaseEnemy):
         self.physics.velocity_x = direction * self.movement_speed
     
     def do_attack(self):
-        """Override attack - ground slam."""
+        # ground slam attack
         super().do_attack()
         print(f"[ICE GOLEM] GROUND SLAM!")
         # TODO: Implement AOE damage + stun effect
     
     def take_damage(self, amount, apply_stun=False):
-        """Override take damage - extreme tank."""
+        # tank damage reduction
         # High damage reduction
         reduced_damage = amount * self.DAMAGE_REDUCTION
         super().take_damage(int(reduced_damage), apply_stun=apply_stun)

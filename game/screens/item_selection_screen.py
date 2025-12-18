@@ -22,7 +22,7 @@ class ItemSelectionScreen:
             print(f"[WARN] Failed to load item menu bg: {e}")
 
     def render(self, item_manager, choice_ids, selected_index):
-        """Draw the selection UI overlay"""
+        # draw selection ui overlay
         # Background
         if self.background_img:
             self.screen.blit(self.background_img, (0, 0))
@@ -223,7 +223,7 @@ class ItemSelectionScreen:
             self.screen.blit(hint_surf, hint_rect)
 
     def _format_stat(self, key, value):
-        """Convert internal stat keys to readable text"""
+        # convert stat keys to readable text
         # Dictionary mapping for cleaner names
         LABELS = {
             "attack_power": "Attack",

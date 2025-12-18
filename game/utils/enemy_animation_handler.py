@@ -2,34 +2,9 @@ import pygame as pg
 import os
 
 class EnemyAnimationHandler:
-    """
-    Handler Animasi untuk Enemy.
-    
-    PERBEDAAN dengan PlayerAnimationHandler:
-    - Player: Sprite Sheet Vertikal (1 file .png = semua frame vertikal)
-    - Enemy: Folder-based (1 folder = 1 animasi, file terpisah per frame)
-    
-    Contoh struktur folder enemy:
-    assets/graphics/enemies/zombie/
-    ├── idle/
-    │   ├── idle_1.png
-    │   ├── idle_2.png
-    │   └── ...
-    ├── attack/
-    │   ├── hit_1.png
-    │   └── ...
-    └── walk/
-        └── ...
-    """
+    # animation handler for enemy - folder-based sprites
     
     def __init__(self, asset_path, scale=1):
-        """
-        Inisialisasi Handler Animasi Enemy.
-        
-        Args:
-            asset_path: Path ke folder enemy (misal: 'assets/graphics/enemies/zombie/')
-            scale: Faktor pembesaran sprite
-        """
         self.animations = {}  # Dictionary: {'idle': [frame1, frame2, ...], 'attack': [...]}
         self.frame_index = 0
         self.animation_speed = 0.15
@@ -38,23 +13,11 @@ class EnemyAnimationHandler:
         self.scale = scale
         self.current_frame = 0  # Integer frame index for state checking
         
-        # Flag untuk memberi tahu Enemy bahwa animasi selesai
-        # Berguna untuk animasi yang tidak loop (attack, die, appear)
+        # animation finished flag
         self.animation_finished = False
         
     def load_sprites(self, animation_mapping):
-        """
-        Memuat semua sprite dari folder-folder animasi.
-        
-        Args:
-            animation_mapping: Dictionary yang memetakan nama state ke nama folder
-                               Contoh: {'idle': 'idle', 'walk': 'walk', 'attack': 'attack'}
-                               Atau: {'idle': 'idle-walk', 'walk': 'idle-walk'} (jika share folder)
-        
-        Kenapa pakai mapping?
-        - Nama folder asset bisa berbeda-beda (idle-walk, walk-idle, dll)
-        - Kita standarkan jadi nama state yang konsisten (idle, walk, attack, dll)
-        """
+        # load all sprites from animation folders
         try:
             for state_name, folder_name in animation_mapping.items():
                 folder_path = os.path.join(self.path, folder_name)
@@ -91,17 +54,7 @@ class EnemyAnimationHandler:
             print(f"[CRITICAL ERROR] Gagal load aset enemy: {e}")
     
     def animate(self, state, speed=None, facing_right=True):
-        """
-        Menjalankan animasi dan mengembalikan frame saat ini.
-        
-        Args:
-            state: Nama state animasi ('idle', 'walk', 'attack', dll)
-            speed: Kecepatan animasi (opsional, override default)
-            facing_right: Arah hadap karakter
-            
-        Returns:
-            Surface frame saat ini, atau None jika tidak ada frame
-        """
+        # run animation and return current frame
         # Override speed jika diberikan
         anim_speed = speed if speed is not None else self.animation_speed
         
@@ -153,18 +106,15 @@ class EnemyAnimationHandler:
         return image
     
     def reset_animation(self):
-        """
-        Reset animasi ke frame 0.
-        Berguna saat memulai animasi baru (misal: mulai attack).
-        """
+        # reset animation to frame 0
         self.frame_index = 0
         self.animation_finished = False
     
     def get_current_frame_index(self):
-        """Mengembalikan index frame saat ini (untuk debugging)."""
+        # get current frame index
         return int(self.frame_index)
     
     def is_animation_finished(self):
-        """Cek apakah animasi sudah selesai (untuk animasi non-loop)."""
+        # check if animation finished
         return self.animation_finished
 

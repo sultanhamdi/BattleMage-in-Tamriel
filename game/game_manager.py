@@ -4,17 +4,21 @@ from game.settings import *
 from game.entities.player import Player
 from game.utils.camera import Camera
 from game.utils.projectile import ProjectileManager
+from game.utils.audio.audio_manager import AudioManager
 from game.level.level_manager import LevelManager
-from game.ui.hud import HUD  # RESTORED HUD IMPORT
+from game.ui.hud import HUD
+from game.items.item_manager import ItemManager
+from game.screens.item_selection_screen import ItemSelectionScreen
+from game.screens.pause_menu import PauseMenu
 
-# Import All Enemy Classes
+
 from game.entities.enemies import (
     DemonSlime, BringerOfDeath, Skullwolf,  # Dungeon Monsters
     FlyingEye, Goblin, Mushroom, Skeleton,   # Grass Monsters
     Golem, Guardian, IceSkeleton              # Ice Monsters
 )
 
-# Mapping nama enemy (dari TMX) ke class
+
 ENEMY_CLASSES = {
     'DemonSlime': DemonSlime,
     'BringerOfDeath': BringerOfDeath,
@@ -39,11 +43,14 @@ class Game:
         # Inisialisasi Kamera
         self.camera = Camera(WINDOW_WIDTH, WINDOW_HEIGHT)
         
+        # AUDIO SYSTEM (Init early for Player)
+        self.audio_manager = AudioManager()
+        
         # Setup Level Manager
         self.level_manager = LevelManager(current_theme='dungeon')
         
         # Generate Rects, Gambar, dan Spawn Point dari Map
-        self.platforms, self.visual_tiles, spawn_point, finish_rect, bg_images, self.enemy_spawns = self.level_manager.create_level()
+        self.platforms, self.visual_tiles, spawn_point, finish_rect, self.bg_images, self.enemy_spawns = self.level_manager.create_level()
         
         # Hitung Ukuran Level (World Size)
         max_x = 0
@@ -55,18 +62,18 @@ class Game:
             max_x = WINDOW_WIDTH
             max_y = WINDOW_HEIGHT
             
-        # Tambahkan sedikit padding
+        # add padding
         level_width = max(WINDOW_WIDTH, max_x)
         level_height = max(WINDOW_HEIGHT, max_y)
         self.camera.set_world_size(level_width, level_height)
         
         self.background = self.level_manager.create_world_background(level_width, level_height)
         
-        # Create void background (fallback solid color)
+        # Create void background 
         self.void_image = None  # Not used with Tiled system
         
         # Spawn player
-        self.player = Player(spawn_point[0], spawn_point[1])
+        self.player = Player(spawn_point[0], spawn_point[1], self.audio_manager)
         
         # UI HUD System (RESTORED)
         self.hud = HUD(self.screen, self.player)
@@ -94,6 +101,20 @@ class Game:
         
         # DEBUG MODE - Press F3 to toggle hitbox visualization
         self.debug_mode = False
+        
+        # Audio Theme Start
+        self.audio_manager.play_theme_music(self.level_manager.theme)
+        
+        # ITEM SYSTEM
+        self.item_manager = ItemManager()
+        self.awaiting_item_selection = False
+        self.current_item_choices = []
+        self.selected_item_index = 0
+        self.item_selection_screen = ItemSelectionScreen(self.screen, WINDOW_WIDTH, WINDOW_HEIGHT)
+        
+        # PAUSE MENU SYSTEM
+        self.pause_menu = PauseMenu(self.screen, self.audio_manager)
+        self.is_paused = False
 
     def spawn_enemies(self, enemy_spawns=None):
         """
@@ -412,7 +433,37 @@ class Game:
                 pg.quit()
                 sys.exit()
             
+            # handle pause menu events first
+            if self.is_paused:
+                result = self.pause_menu.handle_event(event)
+                if result == "resume":
+                    self.is_paused = False
+                    self.pause_menu.hide()
+                elif result == "exit_menu":
+                    return "exit_menu"
+                continue
+            
             if event.type == pg.KEYDOWN:
+                # ESC = toggle pause menu
+                if event.key == pg.K_ESCAPE:
+                    self.is_paused = True
+                    self.pause_menu.show()
+                    continue
+                
+                # handle item selection input (block other inputs)
+                if self.awaiting_item_selection:
+                    if event.key == pg.K_LEFT or event.key == pg.K_a:
+                        self.selected_item_index = 0
+                    elif event.key == pg.K_RIGHT or event.key == pg.K_d:
+                        self.selected_item_index = 1
+                    elif event.key == pg.K_1:
+                        self.confirm_item_selection(0)
+                    elif event.key == pg.K_2:
+                        self.confirm_item_selection(1)
+                    elif event.key == pg.K_RETURN or event.key == pg.K_SPACE:
+                        self.confirm_item_selection(self.selected_item_index)
+                    continue
+                
                 if event.key == pg.K_F4:
                     is_fullscreen = self.screen.get_flags() & pg.FULLSCREEN
                     if is_fullscreen:
@@ -423,19 +474,40 @@ class Game:
                 if event.key == pg.K_UP or event.key == pg.K_SPACE:
                     self.player.jump()
                 
-                # Cheat: Press F to instantly finish level (for development)
+                # cheat: press F to instantly finish level
                 if event.key == pg.K_f:
                     if not self.transitioning:
                         print("[CHEAT] Skipping level...")
                         self.transitioning = True
                         self.fade_state = 'OUT'
                 
-                # F3 = Toggle debug hitbox visualization
+                # F3 = toggle debug hitbox visualization
                 if event.key == pg.K_F3:
                     self.debug_mode = not self.debug_mode
                     print(f"[DEBUG] Hitbox visualization: {'ON' if self.debug_mode else 'OFF'}")
+        
+        return None
+    
+    def confirm_item_selection(self, index):
+        """Player confirms item selection"""
+        if index < len(self.current_item_choices):
+            item_id = self.current_item_choices[index]
+            
+            # Pick and apply item
+            self.item_manager.pick_item(item_id)
+            self.item_manager.apply_item_to_player(self.player, item_id)
+            
+            # Clear selection state
+            self.awaiting_item_selection = False
+            self.current_item_choices = []
+            
+            print(f"[ITEM] Applied: {item_id}")
     
     def update(self):
+        # Skip all updates when item selection is active
+        if self.awaiting_item_selection:
+            return
+        
         # Update Player & Camera (Hanya jika tidak sedang transisi penuh)
         if not self.transitioning or (self.transitioning and self.fade_state == 'IN'):
             self.player.update(self.platforms)
@@ -489,10 +561,18 @@ class Game:
         # Cek apakah level selanjutnya ada
         if next_level_index < len(self.level_manager.levels):
             print(f"[INFO] Loading Level {next_level_index + 1}...")
+            
+            # Trigger Item Selection (if items available)
+            if self.item_manager.get_pool_size() >= 2:
+                self.current_item_choices = self.item_manager.get_random_choices(2)
+                self.awaiting_item_selection = True
+                self.selected_item_index = 0
+                print(f"[ITEM] Choose: {self.current_item_choices}")
+            
             self.level_manager.set_level(next_level_index)
             
             # Re-Generate Level
-            self.platforms, self.visual_tiles, spawn_point, finish_rect, bg_images, self.enemy_spawns = self.level_manager.create_level()
+            self.platforms, self.visual_tiles, spawn_point, finish_rect, self.bg_images, self.enemy_spawns = self.level_manager.create_level()
             self.finish_rect = finish_rect
             
             # Re-Calculate Background Size
@@ -528,22 +608,75 @@ class Game:
             
             self.camera.follow(self.player.physics.rect)
             
+            # Play BGM for new level theme
+            self.audio_manager.play_theme_music(self.level_manager.theme)
+            
         else:
             print("[INFO] No more levels! Game Completed.")
             self.level_manager.set_level(0)
             self.change_level()
 
     def draw(self):
+        # Draw Item Selection Overlay if active
+        if self.awaiting_item_selection:
+            self.screen.fill((20, 20, 30))
+            self.item_selection_screen.render(self.item_manager, self.current_item_choices, self.selected_item_index)
+            pg.display.flip()
+            return
+        
         # Fill background with solid color (void)
         if self.level_manager.theme == 'snow':
             self.screen.fill((20, 30, 45))  # Dark blue for snow
         else:
             self.screen.fill((20, 20, 30))  # Dark grey for dungeon
         
-        # Draw Level Background (Dungeon Image)
+        # Draw Level Background (Tiled Background)
         bg_x = -self.camera.offset.x
         bg_y = -self.camera.offset.y
         self.screen.blit(self.background, (bg_x, bg_y))
+        
+        # Draw TMX Image Layers with repeat support
+        for bg_data in self.bg_images:
+            if len(bg_data) >= 5:
+                bg_img, offset_x, offset_y, repeat_x, repeat_y = bg_data
+            else:
+                bg_img, offset_x, offset_y = bg_data[:3]
+                repeat_x, repeat_y = False, False
+            
+            img_w = bg_img.get_width()
+            img_h = bg_img.get_height()
+            
+            # Calculate base position with camera offset
+            base_x = offset_x - self.camera.offset.x
+            base_y = offset_y - self.camera.offset.y
+            
+            if repeat_x or repeat_y:
+                # Calculate world size for repeat
+                world_w = max(r.right for _, r in self.visual_tiles) if self.visual_tiles else 5000
+                world_h = max(r.bottom for _, r in self.visual_tiles) if self.visual_tiles else 3000
+                
+                # Calculate start/end positions for tiling
+                if repeat_x:
+                    start_x = int(offset_x - self.camera.offset.x) % img_w - img_w
+                    end_x = int(world_w + 1280)
+                else:
+                    start_x = int(base_x)
+                    end_x = start_x + img_w
+                
+                if repeat_y:
+                    start_y = int(offset_y - self.camera.offset.y) % img_h - img_h
+                    end_y = int(world_h + 720)
+                else:
+                    start_y = int(base_y)
+                    end_y = start_y + img_h
+                
+                # Tile the image
+                for x in range(start_x, end_x, img_w):
+                    for y in range(start_y, end_y, img_h):
+                        self.screen.blit(bg_img, (x, y))
+            else:
+                # Static (no repeat) - just draw once
+                self.screen.blit(bg_img, (int(base_x), int(base_y)))
         
         # Gambar Tileset
         for img, rect in self.visual_tiles:
@@ -572,6 +705,10 @@ class Game:
         if self.transitioning or self.fade_alpha > 0:
             self.fade_surface.set_alpha(self.fade_alpha)
             self.screen.blit(self.fade_surface, (0, 0))
+        
+        # Draw Pause Menu Overlay
+        if self.is_paused:
+            self.pause_menu.draw()
         
         pg.display.flip()
     
@@ -674,7 +811,19 @@ class Game:
 
     def run(self):
         while self.running:
-            self.events()
-            self.update()
+            result = self.events()
+            
+            # handle pause menu result
+            if result == "exit_menu":
+                self.running = False
+                return "exit_menu"
+            
+            if not self.is_paused:
+                self.update()
+            else:
+                self.pause_menu.update()
+            
             self.draw()
             self.clock.tick(FPS)
+        
+        return None

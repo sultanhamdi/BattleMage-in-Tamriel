@@ -2,25 +2,17 @@ import pygame as pg
 from game.entities.enemies.enemy import BaseEnemy
 from game.utils.projectile import ProjectileManager
 
-# Path aset
 MUSHROOM_ASSET_PATH = 'assets/graphics/enemies/grass_monster/Mushroom/'
 MUSHROOM_PROJECTILE_PATH = 'assets/graphics/enemies/grass_monster/Mushroom/projectile/'
 
 class Mushroom(BaseEnemy):
-    """
-    Enemy Mushroom - Territorial defender with spore attacks.
-    
-    BEHAVIOR:
-    - Stays near spawn (territorial)
-    - 2 spore attacks then must melee
-    - Fires spore during 'range' animation
-    """
+    # territorial defender with spore attacks
     
     TERRITORY_RADIUS = 200
-    SPORE_COOLDOWN = 600  # 10 seconds at 60fps
+    SPORE_COOLDOWN = 600
     
-    # ATTACK TIMING (Override BaseEnemy)
-    HIT_FRAME = 5  # Slightly later attack hit
+    # attack timing
+    HIT_FRAME = 5
     
     def __init__(self, x, y):
         super().__init__(
@@ -75,7 +67,6 @@ class Mushroom(BaseEnemy):
         self.animator.animation_speed = 0.12
     
     def update(self, platforms):
-        """Update following Skullwolf pattern."""
         # 1. Update Timers
         self.update_timers()
         
@@ -127,7 +118,6 @@ class Mushroom(BaseEnemy):
         self.rect = self.physics.rect
     
     def _update_ai(self):
-        """AI State Machine - Territorial Mushroom."""
         if not self.player_ref or not self.alive:
             self.ai_state = self.STATE_IDLE
             self.physics.velocity_x = 0
