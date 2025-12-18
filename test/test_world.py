@@ -281,6 +281,32 @@ class TestWorld:
             if projectile_damage > 0:
                 print(f"[PROJECTILE] Hit player for {projectile_damage} damage!")
             
+            # DEBUG: Track Player, Enemy, Projectile positions (every 1 second)
+            if not hasattr(self, '_debug_counter'):
+                self._debug_counter = 0
+            self._debug_counter += 1
+            
+            if self._debug_counter % 60 == 0:  # Every 1 second
+                player_x = self.game.player.physics.rect.centerx
+                player_y = self.game.player.physics.rect.centery
+                print(f"\n[DEBUG] Player: x={player_x:.0f} y={player_y:.0f}")
+                
+                # All enemies
+                for enemy in self.game.enemies:
+                    dist = enemy.get_distance_to_player()
+                    name = type(enemy).__name__
+                    print(f"[DEBUG] {name}: x={enemy.physics.rect.x:.0f} dist={dist:.0f} ai={enemy.ai_state}")
+                    
+                    # Extra Goblin info
+                    if isinstance(enemy, Goblin):
+                        print(f"[DEBUG]   └─ range_cd={enemy.range_cooldown} is_range={enemy.is_range_attacking}")
+                
+                # Active projectiles
+                if pm.projectiles:
+                    for i, proj in enumerate(pm.projectiles):
+                        print(f"[DEBUG] Projectile {i}: x={proj.x:.0f} y={proj.y:.0f} dir={proj.direction} speed={proj.speed}")
+                print("")  # Empty line for readability
+            
             # Camera
             self.update_camera()
             
@@ -389,6 +415,15 @@ class TestWorld:
             # Draw projectiles
             pm = ProjectileManager.get_instance()
             pm.draw(self.screen, self.camera_offset)
+            
+            # Projectile hitbox debug (orange)
+            if self.debug_mode:
+                for proj in pm.projectiles:
+                    if proj.alive:
+                        proj_rect = proj.rect.copy()
+                        proj_rect.x -= int(self.camera_offset.x)
+                        proj_rect.y -= int(self.camera_offset.y)
+                        pg.draw.rect(self.screen, (255, 165, 0), proj_rect, 2)
             
             # ===== ON-SCREEN UI OVERLAY =====
             # Background overlay for readability

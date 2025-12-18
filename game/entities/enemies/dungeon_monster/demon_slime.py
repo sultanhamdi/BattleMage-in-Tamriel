@@ -28,6 +28,9 @@ class DemonSlime(BaseEnemy):
     CLEAVE_COOLDOWN = 150    # Slower but powerful attacks
     RAGE_HP_THRESHOLD = 0.4  # Enrage when HP < 40%
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 2  # Fast cleave start
+    
     def __init__(self, x, y):
         """Initialize Demon Slime at position (x, y)."""
         super().__init__(

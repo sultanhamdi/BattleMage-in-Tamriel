@@ -27,6 +27,9 @@ class IceSkeleton(BaseEnemy):
     REACT_COOLDOWN = 90       # Frames antara react
     DAMAGE_REDUCTION = 0.85   # Takes 85% damage (undead resilience)
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 6  # Attack frame 6
+    
     def __init__(self, x, y):
         """Initialize Ice Skeleton at position (x, y)."""
         super().__init__(

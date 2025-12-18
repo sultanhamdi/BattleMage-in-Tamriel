@@ -269,208 +269,97 @@ class Game:
                 print(f"[HIT] Player hits {type(enemy).__name__}! ({enemy.current_hp}/{enemy.max_hp} HP)")
     
     def check_enemy_attack_collision(self):
-        """Check if any enemy's attack hits player"""
+        """Check if any enemy's attack hits player.
+        
+        Uses enemy.HIT_FRAME constant to determine when attack becomes active.
+        Uses enemy.get_attack_hitbox() for attack rect calculation.
+        """
         if not self.player.alive:
             return
         
         for enemy in self.enemies:
-            # Debug: Log BringerOfDeath attacking state
-            if type(enemy).__name__ == 'BringerOfDeath':
-                print(f"[BOD DEBUG] is_attacking={enemy.is_attacking} state={enemy.state} ai_state={enemy.ai_state}")
-            
             if not enemy.alive or not enemy.is_attacking:
                 # Reset tracking when not attacking
                 self.enemy_hit_player.discard(id(enemy))
-                # FIX: Also reset the attack time tracking so next attack is treated as NEW
                 if hasattr(self, 'enemy_last_attack_times') and id(enemy) in self.enemy_last_attack_times:
                     del self.enemy_last_attack_times[id(enemy)]
-                    # DEBUG: Log when tracking is reset for Golem
-                    if type(enemy).__name__ == 'Golem':
-                        print(f"[GOLEM RESET] is_attacking={enemy.is_attacking} state={enemy.state} - Tracking CLEARED")
                 continue
             
-            # NEW: Track when each enemy starts a new attack
-            # If this is a new attack (different last_attack_time), clear the hit tracking
+            # Track new attacks to reset hit tracking
             enemy_id = id(enemy)
             if not hasattr(self, 'enemy_last_attack_times'):
                 self.enemy_last_attack_times = {}
             
             current_attack_time = enemy.last_attack_time
             if enemy_id not in self.enemy_last_attack_times or self.enemy_last_attack_times[enemy_id] != current_attack_time:
-                # New attack started, clear hit tracking for this enemy
                 self.enemy_hit_player.discard(enemy_id)
                 self.enemy_last_attack_times[enemy_id] = current_attack_time
             
-            # Skip if already hit player in THIS specific attack
+            # Skip if already hit player this attack
             if enemy_id in self.enemy_hit_player:
-                print(f"[DEBUG] Enemy {type(enemy).__name__} already hit player in current attack")
                 continue
             
-            # Create attack hitbox for enemy
-            # Attack box extends IN FRONT of enemy hitbox (not overlapping)
-            # Use enemy's custom attack box size if available
-            attack_width = getattr(enemy, 'attack_box_width', 70)
-            attack_height = getattr(enemy, 'attack_box_height', 60)
-            
-            # ACTIVE FRAME CHECK: Only apply damage during specific animation frames
-            # This makes attacks feel more realistic and gives player chance to dodge
+            # === FRAME CHECK: Use enemy's HIT_FRAME constant ===
             current_frame = int(enemy.animator.frame_index) if hasattr(enemy.animator, 'frame_index') else 0
             
-            # Special handling for BringerOfDeath
+            # Special handling for BringerOfDeath spell state
             if type(enemy).__name__ == 'BringerOfDeath':
-                if enemy.state == 'attack':
-                    # Normal attack: active from frame 5 (when scythe swings)
-                    if current_frame < 5:
-                        continue  # Not yet in active frames
-                elif enemy.state == 'cast':
-                    # Cast animation is channeling phase - no damage yet
-                    continue  # Skip damage during cast animation
+                if enemy.state == 'cast':
+                    continue  # Cast is channeling, no damage
                 elif enemy.state == 'spell':
-                    # Spell state: tornado visual, active from frame 6
-                    if current_frame < 6:
-                        continue  # Tornado not yet hitting
-                    attack_width = 180  # Wider spell range
-                    attack_height = 120
-                    
-            # Special handling for DemonSlime (15 frames total)
-            elif type(enemy).__name__ == 'DemonSlime':
-                if enemy.state == 'attack':
-                    # User feedback: still delayed, reduce to frame 2
-                    if current_frame < 2:
-                        continue
-                    # Use custom attack box (already set via attack_box_width/height)
-            
-            # Grass Monsters - Different thresholds per enemy
-            elif type(enemy).__name__ in ['FlyingEye', 'Goblin']:
-                if enemy.state in ['attack', 'attack2']:
-                    # 8 frames: hit at frame 4 (mid-swing) - OK
-                    if current_frame < 4:
-                       continue
-            
-            elif type(enemy).__name__ in ['Mushroom', 'Skeleton']:
-                if enemy.state in ['attack', 'attack2']:
-                    # User feedback: slightly early, increase to frame 5
-                    if current_frame < 5:
-                       continue
-                elif enemy.state == 'shield':  # Skeleton only
-                    continue
-            
-            # Ice Skeleton (18 frames total)
-            elif type(enemy).__name__ == 'IceSkeleton':
-                # FIX: Check lowercase 'attack' (matches enemy.state assignment)
-                if enemy.state == 'attack':
-                    # User says: udah pas at frame 6
-                    if current_frame < 6:
-                        continue
-            
-            # Golem (11 frames total)
-            elif type(enemy).__name__ == 'Golem':
-                if enemy.state == 'attack':
-                    # Asset: 004 = visual impact at frame 4 (Increased to 6 for delay)
-                    if current_frame < 6:
+                    hit_frame = getattr(enemy, 'SPELL_HIT_FRAME', 6)
+                    if current_frame < hit_frame:
                         continue
                 else:
-                    continue
-            
-            # Guardian (14 frames total)
-            elif type(enemy).__name__ == 'Guardian':
-                if enemy.state == 'attack':
-                    # Asset: 1_atk_6 = visual impact at frame 6 (Increased to 11 for delay)
-                    if current_frame < 11:
+                    # Normal attack
+                    if current_frame < enemy.HIT_FRAME:
                         continue
-                else:
+            elif enemy.state == 'shield':
+                # Skeleton shield - no damage
+                continue
+            else:
+                # Default: use enemy's HIT_FRAME constant
+                if current_frame < enemy.HIT_FRAME:
                     continue
             
-            # Skullwolf (5 frames total) - keep default
-            elif type(enemy).__name__ == 'Skullwolf':
-                if enemy.state == 'attack':
-                    # 5 frames: quick pounce, hit early (frame 2)
-                    if current_frame < 2:
-                        continue  # Starting pounce
-                    
-            else:
-                # Default for any other enemies (frame 3+)
-                if current_frame < 3:
-                    continue
+            # === GET ATTACK HITBOX from enemy ===
+            attack_rect = enemy.get_attack_hitbox()
             
-            # Start from hitbox edge, extend in facing direction
-            if enemy.facing_right:
-                attack_x = enemy.physics.rect.right  # Start from right edge
-            else:
-                attack_x = enemy.physics.rect.left - attack_width  # Start from left edge
+            # Special BOD spell has wider range
+            if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'spell':
+                attack_rect = pg.Rect(
+                    enemy.physics.rect.centerx - 90,
+                    enemy.physics.rect.centery - 60,
+                    180, 120
+                )
             
-            
-            # Calculate Y position (raised for spell cast)
-            if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'cast':
-                # CURSE MECHANIC: Tornado follows player! (unavoidable)
-                if hasattr(enemy, 'spell_target_player') and enemy.spell_target_player:
-                    # Lock onto player center, 100px above head
-                    attack_x = self.player.physics.rect.centerx - attack_width // 2
-                    attack_y = self.player.physics.rect.top - 100  # 100px above player
-                    print(f"🎯 [CURSE TRACKING] Tornado following player at ({attack_x}, {attack_y})")
-                else:
-                    # Normal spell at BOD's position
-                    attack_y = enemy.physics.rect.centery - attack_height // 2 - 100  # Raised 100px for tornado
-            else:
-                attack_y = enemy.physics.rect.centery - attack_height // 2
-            
-            attack_rect = pg.Rect(attack_x, attack_y, attack_width, attack_height)
-            
-            # Debug collision check for BringerOfDeath only
-            if type(enemy).__name__ == 'BringerOfDeath':
-                print(f"[BOD ATTACK] attack_rect={attack_rect} player_rect={self.player.physics.rect} collision={attack_rect.colliderect(self.player.physics.rect)}")
-            
-            # Check collision with player - USE PHYSICS.RECT
+            # Check collision with player
             if attack_rect.colliderect(self.player.physics.rect):
                 print(f"[COLLISION] {type(enemy).__name__} attack_rect {attack_rect} hits Player {self.player.physics.rect}")
                 
-                # Apply damage
                 damage = enemy.attack_power
                 
-                # Special BOD Spell Damage & Stun (applied during 'spell' state, not 'cast')
+                # Special BOD Spell Damage & Stun
                 if type(enemy).__name__ == 'BringerOfDeath' and enemy.state == 'spell':
                     if hasattr(enemy, 'spell_damage'):
                         damage = enemy.spell_damage
-                    # Apply STUN to player (2 seconds)
+                    
+                    # Apply STUN to player
                     self.player.is_stunned = True
                     self.player.stun_end_time = pg.time.get_ticks() + 2000
                     self.player.state = 'hurt'
-                    self.player.animator.frame_index = 0  # Reset animation frame
+                    self.player.animator.frame_index = 0
                     print(f"[COMBAT] Player STUNNED by BOD Spell! Duration: 2s")
                     
                     # Apply knockback
                     knockback = getattr(enemy, 'spell_knockback', 0)
                     if knockback > 0:
-                        # Determine knockback direction (away from BOD)
                         if self.player.physics.rect.centerx > enemy.physics.rect.centerx:
-                            # Player on right, knock right
                             self.player.physics.velocity.x = knockback
                         else:
-                            # Player on left, knock left
                             self.player.physics.velocity.x = -knockback
-                        
-                        # Also knock upward
                         self.player.physics.velocity.y = -8
                         print(f"[KNOCKBACK] Player knocked back! vx={self.player.physics.velocity.x}")
-                        
-                        # Apply player stun at frame 6+ (when tornado visually hits)
-                        current_frame = int(enemy.animator.frame_index)
-                        print(f"[DEBUG STUN] BOD spell frame={current_frame}, checking if >= 6...")
-                        if current_frame >= 6:
-                            if not hasattr(self.player, 'is_stunned'):
-                                self.player.is_stunned = False
-                                self.player.stun_end_time = 0
-                            
-                            # Only stun if not already stunned (prevent re-stunning)
-                            if not self.player.is_stunned:
-                                self.player.is_stunned = True
-                                self.player.stun_end_time = pg.time.get_ticks() + 2000  # 2 second stun
-                                # Force player into hurt state for visual feedback
-                                self.player.state = 'hurt'
-                                self.player.animator.reset_animation()
-                                print(f"[STUN] Player STUNNED at frame {current_frame}! Tornado hit! Hurt loop for 2s")
-                        else:
-                            print(f"[DEBUG STUN] Frame {current_frame} < 6, not stunning yet")
                 
                 self.player.take_damage(damage)
                 self.enemy_hit_player.add(id(enemy))

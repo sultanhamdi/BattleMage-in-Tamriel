@@ -29,6 +29,9 @@ class Golem(BaseEnemy):
     SLAM_COOLDOWN = 200      # Slow but devastating
     DAMAGE_REDUCTION = 0.75  # Takes only 75% damage
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 6  # Ground slam impact
+    
     def __init__(self, x, y):
         """Initialize Ice Golem at position (x, y)."""
         super().__init__(

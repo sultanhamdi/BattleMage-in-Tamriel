@@ -19,6 +19,9 @@ class Mushroom(BaseEnemy):
     TERRITORY_RADIUS = 200
     SPORE_COOLDOWN = 600  # 10 seconds at 60fps
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 5  # Slightly later attack hit
+    
     def __init__(self, x, y):
         super().__init__(
             x=x, y=y,

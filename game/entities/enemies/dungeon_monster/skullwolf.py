@@ -28,6 +28,9 @@ class Skullwolf(BaseEnemy):
     RETREAT_DISTANCE = 100   # Retreat after attack
     ATTACK_COOLDOWN = 60     # Fast attacks
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 2  # Quick pounce, hit early
+    
     def __init__(self, x, y):
         """Initialize Skullwolf at position (x, y)."""
         super().__init__(

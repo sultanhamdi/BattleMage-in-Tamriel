@@ -5,23 +5,7 @@ from game.entities.enemies.enemy import BaseEnemy
 BRINGER_ASSET_PATH = 'assets/graphics/enemies/dungeon_monster/bringer_of_death/'
 
 class BringerOfDeath(BaseEnemy):
-    """
-    Enemy Bringer of Death - Elite Boss dengan Spell Casting.
-    
-    KARAKTERISTIK:
-    - HP: 200 (Boss - Highest)
-    - Damage: 30 (Attack), 40 (Spell)
-    - Speed: 2.5 (Moderate)
-    - Behavior: Spell caster, teleport, powerful magic attacks
-    
-    ANIMASI:
-    Idle(8), Walk(8), Attack(10), Cast(10), Spell(16), Hurt(3), Death(10)
-    
-    SPECIAL ABILITY:
-    - Spell Casting: Powerful magic attacks
-    - Phase Shift: Different behavior based on HP
-    - Elite Boss: Hardest enemy in dungeon
-    """
+    """Elite Boss with spell casting and phase mechanics."""
     
     # AI CONSTANTS
     SPELL_RANGE = 600  # Wider range so spell can trigger even if player backs away
@@ -30,6 +14,10 @@ class BringerOfDeath(BaseEnemy):
     PHASE2_HP_THRESHOLD = 0.6  # Phase 2 when HP < 60%
     PHASE3_HP_THRESHOLD = 0.3  # Phase 3 when HP < 30%
     CAST_TRIGGER_HITS = 5  # Number of hits needed to trigger cast (reduced from 6)
+    
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 5  # Scythe swings at frame 5
+    SPELL_HIT_FRAME = 6  # Spell tornado hits at frame 6
     
     def __init__(self, x, y):
         """Initialize Bringer of Death at position (x, y)."""

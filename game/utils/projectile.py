@@ -1,11 +1,4 @@
-"""
-Projectile System untuk enemy range attacks.
-
-Projectile adalah entity sederhana yang:
-1. Bergerak lurus ke arah tertentu
-2. Mengecek collision dengan player
-3. Menghilang setelah keluar screen atau hit player
-"""
+"""Projectile system for enemy range attacks."""
 
 import pygame as pg
 
@@ -94,8 +87,8 @@ class Projectile:
         # Lifetime counter
         self.lifetime += 1
         
-        # Check wall collision
-        if platforms:
+        # Check wall collision (skip first 10 frames to clear spawn area)
+        if platforms and self.lifetime > 10:
             self._check_wall_collision(platforms)
         
         # Animate (only non-impact frames)
@@ -155,12 +148,10 @@ class Projectile:
         check_rect = pg.Rect(front_x - 2, self.rect.y, 4, self.rect.height)
         
         for platform in platforms:
-            # Handle both pg.Rect and objects with .rect attribute
             platform_rect = platform.rect if hasattr(platform, 'rect') else platform
             if check_rect.colliderect(platform_rect):
                 self.hit_wall = True
                 self.trigger_impact()
-                print(f"[PROJECTILE] Hit wall!")
                 break
     
     def check_collision(self, player):
@@ -273,7 +264,6 @@ class ProjectileManager:
             projectile.max_distance = max_distance
         
         self.projectiles.append(projectile)
-        print(f"[PROJECTILE] Spawned at ({x},{y}) dir={direction} frames={len(sprites)}")
         return projectile
     
     def update(self, player, platforms=None):
@@ -295,7 +285,6 @@ class ProjectileManager:
             # Check collision with player
             if projectile.check_collision(player):
                 total_damage += projectile.damage
-                print(f"[PROJECTILE] Hit player for {projectile.damage} damage!")
             
             # Remove dead projectiles
             if not projectile.alive:

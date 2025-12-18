@@ -22,6 +22,9 @@ class Skeleton(BaseEnemy):
     SHIELD_COOLDOWN = 900  # 15 seconds
     SHIELD_DAMAGE_REDUCTION = 0.5  # 50% damage reduction
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 5  # Slightly later attack hit
+    
     def __init__(self, x, y):
         super().__init__(
             x=x, y=y,

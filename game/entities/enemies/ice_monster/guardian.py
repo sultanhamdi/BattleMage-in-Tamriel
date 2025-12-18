@@ -28,6 +28,9 @@ class Guardian(BaseEnemy):
     AURA_RANGE = 120         # Slow aura range
     COMBO_COOLDOWN = 120
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 11  # Late spear thrust
+    
     def __init__(self, x, y):
         """Initialize Ice Guardian at position (x, y)."""
         super().__init__(

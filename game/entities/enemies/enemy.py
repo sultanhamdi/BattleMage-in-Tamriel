@@ -4,91 +4,50 @@ from game.components.physics import PhysicsComponent
 from game.utils.enemy_animation_handler import EnemyAnimationHandler
 
 class BaseEnemy(Entity):
-    """
-    Parent Class (Blueprint) untuk semua jenis Enemy.
-    Mewarisi dari Entity dan menambahkan logika AI.
+    """Parent class for all enemy types with AI state machine."""
     
-    INHERITANCE CHAIN:
-    pg.sprite.Sprite -> Entity -> BaseEnemy -> Zombie/Vampire/Golem
-    
-    FITUR YANG DITAMBAHKAN:
-    1. AI State Machine (IDLE, PATROL, CHASE, ATTACK)
-    2. Player Detection (jarak untuk mendeteksi player)
-    3. Patrol Logic (bolak-balik dalam area tertentu)
-    4. Chase Logic (mengejar player)
-    
-    Child class (Zombie, Vampire, Golem) akan:
-    - Override stats (HP, damage, speed)
-    - Override behavior tertentu (misal: Vampire bisa terbang)
-    - Setup animasi sendiri
-    """
-    
-    # --- KONSTANTA AI STATE ---
+    # AI States
     STATE_IDLE = 'idle'
     STATE_PATROL = 'patrol'
     STATE_CHASE = 'chase'
     STATE_ATTACK = 'attack'
     STATE_HURT = 'hurt'
     STATE_DIE = 'die'
-    STATE_APPEAR = 'appear'  # Khusus Golem
+    STATE_APPEAR = 'appear'
+    
+    # Attack timing - override in child classes
+    HIT_FRAME = 3
+    ATTACK_BOX_WIDTH = 60
+    ATTACK_BOX_HEIGHT = 50
     
     def __init__(self, x, y, width, height, max_hp, attack_power, speed, asset_path, scale=1):
-        """
-        Inisialisasi Base Enemy.
+        super().__init__(x=x, y=y, width=width, height=height, max_hp=max_hp, attack_power=attack_power, speed=speed)
         
-        Args:
-            x, y: Posisi spawn
-            width, height: Ukuran hitbox fisika
-            max_hp: HP maksimal
-            attack_power: Damage serangan
-            speed: Kecepatan gerak
-            asset_path: Path ke folder asset enemy
-            scale: Skala pembesaran sprite
-        """
-        # 1. PANGGIL CONSTRUCTOR PARENT (Entity)
-        super().__init__(
-            x=x, y=y,
-            width=width, height=height,
-            max_hp=max_hp,
-            attack_power=attack_power,
-            speed=speed
-        )
-        
-        # 2. SETUP ANIMATOR (Tugas Child untuk load sprites)
         self.animator = EnemyAnimationHandler(asset_path, scale)
         self.scale = scale
-        
-        # 3. AI STATE MACHINE
         self.ai_state = self.STATE_IDLE
         
-        # 4. DETECTION & COMBAT RANGES
-        self.detection_range = 300  # Jarak deteksi player (pixel)
-        self.attack_range = 50      # Jarak untuk menyerang (pixel)
-        self.lose_interest_range = 400  # Jarak untuk berhenti mengejar
+        # Detection & combat ranges
+        self.detection_range = 300
+        self.attack_range = 50
+        self.lose_interest_range = 400
         
-        # 5. PATROL SETTINGS
-        self.patrol_speed = speed * 0.5  # Patrol lebih lambat dari chase
-        self.patrol_direction = -1  # 1 = kanan, -1 = kiri (START LEFT)
-        self.patrol_distance = 200  # Jarak patrol dari titik spawn
-        self.spawn_x = x  # Simpan posisi spawn untuk patrol
+        # Patrol settings
+        self.patrol_speed = speed * 0.5
+        self.patrol_direction = -1
+        self.patrol_distance = 200
+        self.spawn_x = x
         
-        # 6. REFERENCE KE PLAYER (akan di-set dari GameManager)
+        # References and flags
         self.player_ref = None
+        self.facing_right = False
+        self.has_gravity = True
         
-        # 7. FACING DIRECTION (untuk animasi)
-        # Override dari physics component agar konsisten
-        self.facing_right = False  # START FACING LEFT (sprites default kanan)
+        # Sprite offsets
+        self.sprite_anchor_offset = 0
+        self.sprite_offset_y = 0
         
-        # 8. GRAVITY FLAG (child class bisa disable untuk flying)
-        self.has_gravity = True  # Most enemies need gravity
-        
-        # 9. SPRITE ANCHOR OFFSET (for asymmetric sprites)
-        # s_anchor_offset_x: Shifts sprite horizontally (useful for asymmetric bodies)
-        # s_offset_y: Shifts sprite vertically (useful for flying units or shadow alignment)
-        self.sprite_anchor_offset = 0 
-        self.sprite_offset_y = 0  # NEW: Vertical offset (Positive = Shift Sprite UP / Collider DOWN)
-        
-        # 10. STUN MECHANIC (for arcane spell)
+        # Stun mechanic
         self.is_stunned = False
         self.stun_end_time = 0
         self.STUN_DURATION = 2000  # 2 seconds in milliseconds
@@ -105,47 +64,25 @@ class BaseEnemy(Entity):
         self.player_ref = player
     
     def get_distance_to_player(self):
-        """
-        Hitung jarak ke player.
-        Returns: Jarak dalam pixel, atau float('inf') jika tidak ada player.
-        """
+        """Return distance to player in pixels."""
         if not self.player_ref or not self.player_ref.alive:
             return float('inf')
-        
-        # USE PHYSICS.RECT for accurate positions
         dx = self.player_ref.physics.rect.centerx - self.physics.rect.centerx
         dy = self.player_ref.physics.rect.centery - self.physics.rect.centery
-        
-        # Euclidean distance
-        distance = (dx**2 + dy**2) ** 0.5
-        return distance
+        return (dx**2 + dy**2) ** 0.5
     
     def get_direction_to_player(self):
-        """
-        Tentukan arah ke player.
-        Returns: 1 jika player di kanan, -1 jika di kiri, 0 jika tidak ada player.
-        """
+        """Return 1 if player is right, -1 if left, 0 if no player."""
         if not self.player_ref:
             return 0
-        
-        # USE PHYSICS.RECT for accurate positions
         if self.player_ref.physics.rect.centerx > self.physics.rect.centerx:
-            return 1  # Player di kanan
+            return 1
         elif self.player_ref.physics.rect.centerx < self.physics.rect.centerx:
-            return -1  # Player di kiri
+            return -1
         return 0
     
     def update_ai_state(self):
-        """
-        Update AI State berdasarkan kondisi.
-        Ini adalah LOGIKA DASAR yang bisa di-override oleh child class.
-        
-        STATE TRANSITIONS:
-        IDLE -> CHASE (player terdeteksi)
-        CHASE -> ATTACK (player dalam jangkauan)
-        CHASE -> IDLE (player terlalu jauh)
-        ATTACK -> CHASE (setelah attack selesai)
-        """
+        """Update AI state based on player distance and conditions."""
         # Jangan update AI jika mati
         if not self.alive:
             self.ai_state = self.STATE_DIE
@@ -232,10 +169,6 @@ class BaseEnemy(Entity):
         
         return x_velocity
     
-    # ===========================================
-    # SECTION: AI BEHAVIORS (bisa di-override)
-    # ===========================================
-    
     def do_patrol(self):
         """
         Logika patrol: Jalan bolak-balik dari titik spawn.
@@ -278,6 +211,26 @@ class BaseEnemy(Entity):
             self.last_attack_time = pg.time.get_ticks()
             self.state = 'attack'
             self.animator.reset_animation()
+    
+    def get_attack_hitbox(self):
+        """
+        Return attack hitbox rect based on facing direction.
+        Child classes can override for custom hitbox shapes.
+        
+        Returns:
+            pg.Rect: The attack hitbox rect
+        """
+        width = getattr(self, 'attack_box_width', self.ATTACK_BOX_WIDTH)
+        height = getattr(self, 'attack_box_height', self.ATTACK_BOX_HEIGHT)
+        
+        if self.facing_right:
+            x = self.physics.rect.right
+        else:
+            x = self.physics.rect.left - width
+        
+        y = self.physics.rect.centery - height // 2
+        
+        return pg.Rect(x, y, width, height)
     
     # ===========================================
     # SECTION: UPDATE & DRAW (Override Entity)

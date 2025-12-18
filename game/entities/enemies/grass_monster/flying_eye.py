@@ -22,6 +22,9 @@ class FlyingEye(BaseEnemy):
     HOVER_FREQUENCY = 0.08
     PROJECTILE_COOLDOWN = 600  # 10 seconds at 60fps
     
+    # ATTACK TIMING (Override BaseEnemy)
+    HIT_FRAME = 4  # Mid-swing melee hit
+    
     def __init__(self, x, y):
         super().__init__(
             x=x, y=y,
